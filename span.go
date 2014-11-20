@@ -180,3 +180,15 @@ func (as Annotations) schemas() []string {
 	}
 	return schemas
 }
+
+// get gets the value of the first annotation with the given key, or
+// nil if none exists. There may be multiple annotations with the key;
+// only the first's value is returned.
+func (as Annotations) get(key string) []byte {
+	for _, a := range as {
+		if a.Key == key {
+			return a.Value
+		}
+	}
+	return nil
+}

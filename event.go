@@ -89,8 +89,7 @@ type spanName string
 
 func (spanName) Schema() string { return nameKey }
 
-// Msg returns an Event that contains only a human-readable
-// msg.
+// Msg returns an Event that contains only a human-readable message.
 func Msg(msg string) Event {
 	return msgEvent{Msg: msg}
 }
@@ -107,7 +106,7 @@ type TimestampedEvent interface {
 }
 
 // Log returns an Event whose timestamp is the current time that
-// contains only a human-readable msg.
+// contains only a human-readable message.
 func Log(msg string) Event {
 	return logEvent{Msg: msg, Time: time.Now()}
 }
