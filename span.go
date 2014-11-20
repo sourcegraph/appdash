@@ -1,6 +1,7 @@
 package apptrace
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -158,4 +159,24 @@ type Annotation struct {
 	// machine readable, depending on the schema of the event that
 	// generated it.
 	Value []byte
+}
+
+// String returns a formatted list of annotations.
+func (as Annotations) String() string {
+	var buf bytes.Buffer
+	for _, a := range as {
+		fmt.Fprintf(&buf, "%s=%q\n", a.Key, a.Value)
+	}
+	return buf.String()
+}
+
+// schemas returns a list of schema types in the annotations.
+func (as Annotations) schemas() []string {
+	var schemas []string
+	for _, a := range as {
+		if strings.HasPrefix(a.Key, schemaPrefix) {
+			schemas = append(schemas, a.Key[len(schemaPrefix):])
+		}
+	}
+	return schemas
 }

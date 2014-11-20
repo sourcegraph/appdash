@@ -19,7 +19,7 @@ func TestFlattenBools(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "true",
+		"Value": "true",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -39,7 +39,7 @@ func TestFlattenStrings(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "bar",
+		"Value": "bar",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -79,7 +79,7 @@ func TestFlattenTime(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "2014-05-16T12:28:38.0000004Z",
+		"Value": "2014-05-16T12:28:38.0000004Z",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -101,8 +101,8 @@ func TestFlattenFloats(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"a": "3",
-		"b": "500.3",
+		"A": "3",
+		"B": "500.3",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -130,11 +130,11 @@ func TestFlattenInts(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"a": "1",
-		"b": "2",
-		"c": "3",
-		"d": "4",
-		"e": "5",
+		"A": "1",
+		"B": "2",
+		"C": "3",
+		"D": "4",
+		"E": "5",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -162,11 +162,11 @@ func TestFlattenUints(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"a": "1",
-		"b": "2",
-		"c": "3",
-		"d": "4",
-		"e": "5",
+		"A": "1",
+		"B": "2",
+		"C": "3",
+		"D": "4",
+		"E": "5",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -189,8 +189,8 @@ func TestFlattenMaps(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value.one": "1",
-		"value.two": "2",
+		"Value.one": "1",
+		"Value.two": "2",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -210,9 +210,9 @@ func TestFlattenSlices(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value.0": "1",
-		"value.1": "2",
-		"value.2": "3",
+		"Value.0": "1",
+		"Value.1": "2",
+		"Value.2": "3",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -232,9 +232,9 @@ func TestFlattenArrays(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value.0": "1",
-		"value.1": "2",
-		"value.2": "3",
+		"Value.0": "1",
+		"Value.1": "2",
+		"Value.2": "3",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -260,7 +260,7 @@ func TestFlattenStringers(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "stringer",
+		"Value": "stringer",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -280,7 +280,7 @@ func TestFlattenArbitraryTypes(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "(17+4i)",
+		"Value": "(17+4i)",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -342,7 +342,7 @@ func TestFlattenDuration(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "0.5",
+		"Value": "0.5",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
@@ -363,7 +363,7 @@ func TestFlattenPointers(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"value": "bar",
+		"Value": "bar",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)

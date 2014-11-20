@@ -154,3 +154,21 @@ func TestParseSpanIDBadParent(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestSpan_Name(t *testing.T) {
+	namedSpan := &Span{Annotations: Annotations{{Key: nameKey, Value: []byte("foo")}}}
+	if want := "foo"; namedSpan.Name() != want {
+		t.Errorf("got Name %q, want %q", namedSpan.Name(), want)
+	}
+
+	noNameSpan := &Span{}
+	if want := ""; noNameSpan.Name() != want {
+		t.Errorf("got Name %q, want %q", noNameSpan.Name(), want)
+	}
+}
+
+type annotations Annotations
+
+func (a annotations) Len() int           { return len(a) }
+func (a annotations) Less(i, j int) bool { return a[i].Key < a[j].Key }
+func (a annotations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -80,7 +79,7 @@ func fieldNames(v reflect.Value) map[int]string {
 
 		name := fld.Tag.Get("trace")
 		if name == "" {
-			name = strings.ToLower(fld.Name)
+			name = fld.Name
 		}
 		m[i] = name
 	}
