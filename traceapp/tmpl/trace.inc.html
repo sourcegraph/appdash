@@ -1,0 +1,28 @@
+{{define "Trace"}}
+<li class="trace">
+  {{template "SpanLabel" .Span}}
+  {{if .Span.Annotations}}
+  <table class="table table-condensed table-striped">
+    {{range (filterAnnotations .Span.Annotations)}}
+    <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+    {{end}}
+  </table>
+  {{end}}
+
+  {{if .Sub}}
+  <ul class="sub traces">
+    {{range .Sub}}
+    {{template "Trace" .}}
+    {{end}}
+  </ul>
+  {{end}}
+</li>
+{{end}}
+
+{{define "SpanLabel"}}
+{{if .Name}}
+<strong title="{{.ID}}">{{.Name}}</strong>
+{{else}}
+<strong title="{{.ID}}">{{.ID.Span}}</strong>
+{{end}}
+{{end}}

@@ -1,0 +1,11 @@
+{{define "Title"}}Trace {{.TraceID}} - apptrace{{end}}
+
+{{define "Main"}}
+<h1>Trace {{.TraceID}}</h1>
+
+<ul class="traces">
+  {{template "Trace" .Trace}}
+</ul>
+
+{{end}}
+

@@ -30,14 +30,14 @@ type Queryer interface {
 }
 
 // NewMemoryStore creates a new in-memory store
-func NewMemoryStore() Store {
-	return &memoryStore{
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{
 		trace: map[ID]*Trace{},
 		span:  map[ID]map[ID]*Trace{},
 	}
 }
 
-type memoryStore struct {
+type MemoryStore struct {
 	trace map[ID]*Trace        // trace ID -> trace tree
 	span  map[ID]map[ID]*Trace // trace ID -> span ID -> trace (sub)tree
 
@@ -50,9 +50,9 @@ type memoryStore struct {
 var _ interface {
 	Store
 	Queryer
-} = &memoryStore{}
+} = &MemoryStore{}
 
-func (ms *memoryStore) Collect(id SpanID, as ...Annotation) error {
+func (ms *MemoryStore) Collect(id SpanID, as ...Annotation) error {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -145,7 +145,7 @@ func (ms *memoryStore) Collect(id SpanID, as ...Annotation) error {
 
 // insert inserts t into the trace tree whose root (or temp root) is
 // root.
-func (ms *memoryStore) insert(root, t *Trace) {
+func (ms *MemoryStore) insert(root, t *Trace) {
 	p, present := ms.span[t.ID.Trace][t.ID.Parent]
 	if present {
 		if ms.log {
@@ -164,7 +164,7 @@ func (ms *memoryStore) insert(root, t *Trace) {
 
 // reattachChildren moves temporary children of src to dst, if dst is
 // the node's parent.
-func (ms *memoryStore) reattachChildren(dst, src *Trace) {
+func (ms *MemoryStore) reattachChildren(dst, src *Trace) {
 	if dst == src {
 		panic("dst == src")
 	}
@@ -182,10 +182,14 @@ func (ms *memoryStore) reattachChildren(dst, src *Trace) {
 	src.Sub = sub2
 }
 
-func (ms *memoryStore) Trace(id ID) (*Trace, error) {
+func (ms *MemoryStore) Trace(id ID) (*Trace, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
+	return ms.traceNoLock(id)
+}
+
+func (ms *MemoryStore) traceNoLock(id ID) (*Trace, error) {
 	t, present := ms.trace[id]
 	if !present {
 		return nil, ErrTraceNotFound
@@ -193,13 +197,13 @@ func (ms *memoryStore) Trace(id ID) (*Trace, error) {
 	return t, nil
 }
 
-func (ms *memoryStore) Traces() ([]*Trace, error) {
+func (ms *MemoryStore) Traces() ([]*Trace, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
 	var ts []*Trace
 	for id := range ms.trace {
-		t, err := ms.Trace(id)
+		t, err := ms.traceNoLock(id)
 		if err != nil {
 			return nil, err
 		}

@@ -233,7 +233,7 @@ func TestMemoryStore_Collect_traceTreeRearrangement(t *testing.T) {
 			}
 
 			ms := storeT{t, NewMemoryStore()}
-			// ms.Store.(*memoryStore).log = true
+			// ms.Store.(*MemoryStore).log = true
 
 			perm := rand.New(rand.NewSource(seed)).Perm(n)
 			spanIDs := make([]SpanID, n) // random order

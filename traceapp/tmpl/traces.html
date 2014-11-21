@@ -1,0 +1,17 @@
+{{define "Title"}}Traces - apptrace{{end}}
+
+{{define "Main"}}
+<h1>Traces</h1>
+
+<ul>
+  {{range .Traces}}
+  <li>
+    <a href="{{urlToTrace .Span.ID.Trace}}">{{.Span.ID.Trace}}</a>
+
+    <ul class="traces">
+      {{template "Trace" .}}
+    </ul>
+  </li>
+  {{end}}
+</ul>
+{{end}}
