@@ -51,6 +51,9 @@ type ServerEvent struct {
 // Schema returns the constant "HTTPServer".
 func (ServerEvent) Schema() string { return "HTTPServer" }
 
+func (e ServerEvent) Start() time.Time { return e.ServerRecv }
+func (e ServerEvent) End() time.Time   { return e.ServerSend }
+
 // Middleware creates a new http.Handler middleware
 // (negroni-compliant) that records incoming HTTP requests to the
 // collector c as "HTTPServer"-schema events.
@@ -93,7 +96,7 @@ func Middleware(c apptrace.Collector, conf *MiddlewareConfig) func(rw http.Respo
 		if e.Route != "" {
 			rec.Name(e.Route)
 		} else {
-			rec.Name(e.Request.URI)
+			rec.Name(e.Request.Host)
 		}
 		rec.Event(e)
 	}

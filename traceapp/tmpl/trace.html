@@ -3,6 +3,79 @@
 {{define "Main"}}
 <h1>Trace {{.TraceID}}</h1>
 
+<div>
+<div id="#trace-{{.TraceID}}" class="trace-timeline"></div>
+<div id="hoverRes">
+  <div class="coloredDiv"></div>
+  <div id="name"></div>
+  <div id="scrolled_date"></div>
+</div>
+</div>
+
+<style type="text/css">
+ .axis path,
+ .axis line {
+   fill: none;
+   stroke: black;
+   shape-rendering: crispEdges;
+ }
+ .axis text {
+   font-family: sans-serif;
+   font-size: 10px;
+ }
+ .timeline-label {
+   font-family: sans-serif;
+   font-size: 12px;
+ }
+ #timeline2 .axis {
+   transform: translate(0px,30px);
+   -ms-transform: translate(0px,30px); /* IE 9 */
+   -webkit-transform: translate(0px,30px); /* Safari and Chrome */
+   -o-transform: translate(0px,30px); /* Opera */
+   -moz-transform: translate(0px,30px); /* Firefox */
+ }
+ .coloredDiv {
+   height:20px; width:20px; float:left;
+ }
+</style>
+
+<script type="text/javascript">
+ var data = {{d3timeline .Trace}};
+ var width = 1000;
+ function timelineRect() {
+   var chart = d3.timeline();
+   var svg = d3.select(".trace-timeline").append("svg").attr("width", width)
+               .datum(data).call(chart);
+ }
+
+
+ function timelineHover() {
+   var chart = d3.timeline()
+                 .width(width)
+                 .stack()
+                 .margin({left:70, right:30, top:0, bottom:0})
+                 .hover(function (d, i, datum) {
+                   // d is the current rendering object
+                   // i is the index during d3 rendering
+                   // datum is the id object
+                   var div = $('#hoverRes');
+                   var colors = chart.colors();
+                   div.find('.coloredDiv').css('background-color', colors(i))
+                   div.find('#name').text(datum.label);
+                 })
+                 .click(function (d, i, datum) {
+                   alert(JSON.stringify(datum.data, null, 2));
+                 })
+                 .scroll(function (x, scale) {
+                   $("#scrolled_date").text(scale.invert(x) + " to " + scale.invert(x+width));
+                 });
+   var svg = d3.select(".trace-timeline").append("svg").attr("width", width)
+               .datum(data).call(chart);
+ }
+
+ timelineHover();
+</script>
+
 <ul class="traces">
   {{template "Trace" .Trace}}
 </ul>

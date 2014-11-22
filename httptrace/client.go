@@ -58,6 +58,9 @@ type ClientEvent struct {
 // Schema returns the constant "HTTPClient".
 func (ClientEvent) Schema() string { return "HTTPClient" }
 
+func (e ClientEvent) Start() time.Time { return e.ClientSend }
+func (e ClientEvent) End() time.Time   { return e.ClientRecv }
+
 var (
 	redacted = []string{"REDACTED"}
 )
@@ -105,6 +108,8 @@ type Transport struct {
 	// Transport is the underlying HTTP transport to use when making
 	// requests.  It will default to http.DefaultTransport if nil.
 	Transport http.RoundTripper
+
+	SetName bool
 }
 
 // RoundTrip implements the RoundTripper interface.
@@ -122,7 +127,9 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = cloneRequest(req)
 
 	child := t.Recorder.Child()
-	child.Name(req.URL.RequestURI())
+	if t.SetName {
+		child.Name(req.URL.Host)
+	}
 	SetSpanIDHeader(req.Header, child.SpanID)
 
 	e := NewClientEvent(req)
