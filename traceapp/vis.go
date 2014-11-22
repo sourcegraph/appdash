@@ -7,6 +7,7 @@ import (
 	"sourcegraph.com/sourcegraph/apptrace"
 
 	_ "sourcegraph.com/sourcegraph/apptrace/httptrace"
+	_ "sourcegraph.com/sourcegraph/apptrace/sqltrace"
 )
 
 type timelineItem struct {
