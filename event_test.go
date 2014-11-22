@@ -82,6 +82,38 @@ func TestUnmarshalEvent(t *testing.T) {
 	}
 }
 
+func TestUnmarshalEvents(t *testing.T) {
+	origRegisteredEvents := registeredEvents
+	defer func() {
+		registeredEvents = origRegisteredEvents
+	}()
+
+	for k := range registeredEvents {
+		delete(registeredEvents, k)
+	}
+	RegisterEvent(dummyEvent{})
+	RegisterEvent(dummyEvent2{})
+
+	anns := Annotations{
+		{Key: "A", Value: []byte("a")},
+		{Key: "X", Value: []byte("x")},
+		{Key: "_schema:dummy"},
+		{Key: "_schema:dummy2"},
+	}
+	var events []Event
+	if err := UnmarshalEvents(anns, &events); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []Event{
+		dummyEvent{A: "a"},
+		dummyEvent2{A: "a", X: "x"},
+	}
+	if !reflect.DeepEqual(events, want) {
+		t.Errorf("got events %#v, want %#v", events, want)
+	}
+}
+
 func TestMsg(t *testing.T) {
 	e := Msg("foo")
 
@@ -144,3 +176,7 @@ type dummyEventF struct {
 }
 
 func (dummyEvent) Schema() string { return "dummy" }
+
+type dummyEvent2 struct{ A, X string }
+
+func (dummyEvent2) Schema() string { return "dummy2" }

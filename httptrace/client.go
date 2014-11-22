@@ -14,6 +14,8 @@ var (
 	RedactedHeaders = []string{"Authorization"}
 )
 
+func init() { apptrace.RegisterEvent(ClientEvent{}) }
+
 // NewClientEvent returns an event which records various aspects of an
 // HTTP request.  The returned value is incomplete, and should have
 // the response status, size, and the ClientSend/ClientRecv times set

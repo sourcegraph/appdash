@@ -69,6 +69,35 @@ func UnmarshalEvent(as Annotations, e Event) error {
 	return nil
 }
 
+// RegisterEvent registers an event type for use with UnmarshalEvents.
+func RegisterEvent(e Event) {
+	if _, present := registeredEvents[e.Schema()]; present {
+		panic("event schema is already registered: " + e.Schema())
+	}
+	if e.Schema() == "" {
+		panic("event schema is empty")
+	}
+	registeredEvents[e.Schema()] = e
+}
+
+var registeredEvents = map[string]Event{} // event schema -> event type
+
+// UnmarshalEvents unmarshals all events found in anns into
+// events. Any schemas found in anns that were not registered (using
+// RegisterEvent) are ignored; missing a schema is not an error.
+func UnmarshalEvents(anns Annotations, events *[]Event) error {
+	schemas := anns.schemas()
+	for _, schema := range schemas {
+		ev := registeredEvents[schema]
+		evv := reflect.New(reflect.TypeOf(ev))
+		if err := UnmarshalEvent(anns, evv.Interface().(Event)); err != nil {
+			return err
+		}
+		*events = append(*events, evv.Elem().Interface().(Event))
+	}
+	return nil
+}
+
 // A spanName event sets a span's name.
 type spanName string
 

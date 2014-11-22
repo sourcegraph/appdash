@@ -8,6 +8,8 @@ import (
 	"sourcegraph.com/sourcegraph/apptrace"
 )
 
+func init() { apptrace.RegisterEvent(ServerEvent{}) }
+
 // NewServerEvent returns an event which records various aspects of an
 // HTTP response. It takes an HTTP request, not response, as input
 // because the information it records is derived from the request, and
