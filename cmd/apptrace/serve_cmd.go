@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"sourcegraph.com/sourcegraph/apptrace"
 	"sourcegraph.com/sourcegraph/apptrace/traceapp"
@@ -31,6 +32,8 @@ type ServeCmd struct {
 	Debug bool `short:"d" long:"debug" description:"debug log"`
 	Trace bool `long:"trace" description:"trace log"`
 
+	DeleteAfter time.Duration `long:"delete-after" description:"delete traces after a certain age (0 to disable)" default:"30m"`
+
 	TLSCert string `long:"tls-cert" description:"TLS certificate file (if set, enables TLS)"`
 	TLSKey  string `long:"tls-key" description:"TLS key file (if set, enables TLS)"`
 }
@@ -39,9 +42,18 @@ var serveCmd ServeCmd
 
 func (c *ServeCmd) Execute(args []string) error {
 	var (
-		Store   = apptrace.NewMemoryStore()
-		Queryer = Store
+		memStore = apptrace.NewMemoryStore()
+		Store    = apptrace.Store(memStore)
+		Queryer  = memStore
 	)
+
+	if c.DeleteAfter > 0 {
+		Store = &apptrace.RecentStore{
+			MinEvictAge: c.DeleteAfter,
+			DeleteStore: memStore,
+			Debug:       true,
+		}
+	}
 
 	app := traceapp.New(nil)
 	app.Store = Store
