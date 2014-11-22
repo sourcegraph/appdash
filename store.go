@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"sync"
+	"time"
 )
 
 // A Store stores and retrieves spans.
@@ -210,4 +211,95 @@ func (ms *MemoryStore) Traces() ([]*Trace, error) {
 		ts = append(ts, t)
 	}
 	return ts, nil
+}
+
+func (ms *MemoryStore) Delete(traces ...ID) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	for _, id := range traces {
+		delete(ms.trace, id)
+		delete(ms.span, id)
+	}
+	return nil
+}
+
+// A DeleteStore is a Store that can delete traces.
+type DeleteStore interface {
+	Store
+
+	// Delete deletes traces given their trace IDs.
+	Delete(...ID) error
+}
+
+// A RecentStore wraps another store and deletes old traces after a
+// specified amount of time.
+type RecentStore struct {
+	// MinEvictAge is the minimum age of a trace before it is evicted.
+	MinEvictAge time.Duration
+
+	// DeleteStore is the underlying store that spans are saved to and
+	// deleted from.
+	DeleteStore
+
+	// Debug is whether to log debug messages.
+	Debug bool
+
+	// created maps trace ID to the UnixNano time it was first seen.
+	created map[ID]int64
+
+	// lastEvicted is the last time the eviction process was run.
+	lastEvicted time.Time
+
+	mu sync.Mutex // mu guards created and lastEvicted
+}
+
+// Collect calls the underlying store's Collect and records the time
+// that this trace was first seen.
+func (rs *RecentStore) Collect(id SpanID, anns ...Annotation) error {
+	rs.mu.Lock()
+	if rs.created == nil {
+		rs.created = map[ID]int64{}
+	}
+	if _, present := rs.created[id.Trace]; !present {
+		rs.created[id.Trace] = time.Now().UnixNano()
+	}
+	if time.Since(rs.lastEvicted) > rs.MinEvictAge {
+		rs.evictBefore(time.Now().Add(-1 * rs.MinEvictAge))
+	}
+	rs.mu.Unlock()
+
+	return rs.DeleteStore.Collect(id, anns...)
+}
+
+// evictBefore evicts traces that were created before t. The rs.mu lock
+// must be held while calling evictBefore.
+func (rs *RecentStore) evictBefore(t time.Time) {
+	evictStart := time.Now()
+	tnano := t.UnixNano()
+	var toEvict []ID
+	for id, ct := range rs.created {
+		if ct < tnano {
+			toEvict = append(toEvict, id)
+			delete(rs.created, id)
+		}
+	}
+	if len(toEvict) == 0 {
+		return
+	}
+
+	if rs.Debug {
+		log.Printf("RecentStore: deleting %d traces created before %s (age check took %s)", len(toEvict), t, time.Since(evictStart))
+	}
+
+	// Spawn separate goroutine so we don't hold the rs.mu lock.
+	go func() {
+		deleteStart := time.Now()
+		if err := rs.DeleteStore.Delete(toEvict...); err != nil {
+			log.Printf("RecentStore: failed to delete traces: %s", err)
+		}
+		if rs.Debug {
+			log.Printf("RecentStore: finished deleting %d traces created before %s (took %s)", len(toEvict), t, time.Since(deleteStart))
+		}
+	}()
 }

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMemoryStore_Collect_notFound(t *testing.T) {
@@ -288,6 +289,32 @@ func (t *Trace) sortSubRecursive() {
 	sort.Sort(tracesByIDSpan(t.Sub))
 	for _, st := range t.Sub {
 		st.sortSubRecursive()
+	}
+}
+
+func TestRecentStore(t *testing.T) {
+	const age = time.Millisecond * 10
+
+	ms := NewMemoryStore()
+	rs := &storeT{t, &RecentStore{DeleteStore: ms, MinEvictAge: age}}
+
+	rs.MustCollect(SpanID{1, 2, 3})
+	rs.MustCollect(SpanID{2, 3, 4})
+
+	traces, _ := ms.Traces()
+	if len(traces) != 2 {
+		t.Errorf("got traces %v, want %d total", traces, 2)
+	}
+
+	time.Sleep(2 * age)
+	rs.MustCollect(SpanID{3, 4, 5})
+	time.Sleep(2 * age)
+	traces, _ = ms.Traces()
+	if len(traces) != 1 {
+		t.Errorf("got traces %v, want %d total", traces, 1)
+	}
+	if trace, want := traces[0].ID, (SpanID{3, 4, 5}); trace != want {
+		t.Errorf("got trace %v, want %v", trace, want)
 	}
 }
 
