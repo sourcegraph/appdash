@@ -114,6 +114,20 @@ func TestUnmarshalEvents(t *testing.T) {
 	}
 }
 
+func TestSpanName(t *testing.T) {
+	e := spanName{"foo"}
+
+	anns, err := MarshalEvent(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	span := Span{Annotations: anns}
+	if want := "foo"; span.Name() != want {
+		t.Errorf("got span name == %q, want %q", span.Name(), want)
+	}
+}
+
 func TestMsg(t *testing.T) {
 	e := Msg("foo")
 

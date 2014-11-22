@@ -156,7 +156,7 @@ func TestParseSpanIDBadParent(t *testing.T) {
 }
 
 func TestSpan_Name(t *testing.T) {
-	namedSpan := &Span{Annotations: Annotations{{Key: nameKey, Value: []byte("foo")}}}
+	namedSpan := &Span{Annotations: Annotations{{Key: "Name", Value: []byte("foo")}}}
 	if want := "foo"; namedSpan.Name() != want {
 		t.Errorf("got Name %q, want %q", namedSpan.Name(), want)
 	}

@@ -39,7 +39,7 @@ func TestRecorder(t *testing.T) {
 	if calledCollect != 2 {
 		t.Errorf("got calledCollect %d, want 1", calledCollect)
 	}
-	if diff := diffAnnotationsFromEvent(anns, spanName("name")); len(diff) > 0 {
+	if diff := diffAnnotationsFromEvent(anns, spanName{"name"}); len(diff) > 0 {
 		t.Errorf("got diff annotations for spanName event:\n%s", strings.Join(diff, "\n"))
 	}
 }

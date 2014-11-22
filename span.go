@@ -134,18 +134,13 @@ func (s *Span) String() string {
 // Name returns a span's name if it has a name annotation, and ""
 // otherwise.
 func (s *Span) Name() string {
-	for _, a := range s.Annotations {
-		if a.Key == nameKey {
-			return string(a.Value)
+	for _, ann := range s.Annotations {
+		if ann.Key == "Name" {
+			return string(ann.Value)
 		}
 	}
 	return ""
 }
-
-const (
-	// Special annotation keys.
-	nameKey = "name"
-)
 
 // Annotations is a list of annotations (on a span).
 type Annotations []Annotation

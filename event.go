@@ -82,6 +82,12 @@ func RegisterEvent(e Event) {
 
 var registeredEvents = map[string]Event{} // event schema -> event type
 
+func init() {
+	RegisterEvent(spanName{})
+	RegisterEvent(logEvent{})
+	RegisterEvent(msgEvent{})
+}
+
 // UnmarshalEvents unmarshals all events found in anns into
 // events. Any schemas found in anns that were not registered (using
 // RegisterEvent) are ignored; missing a schema is not an error.
@@ -89,6 +95,9 @@ func UnmarshalEvents(anns Annotations, events *[]Event) error {
 	schemas := anns.schemas()
 	for _, schema := range schemas {
 		ev := registeredEvents[schema]
+		if ev == nil {
+			continue
+		}
 		evv := reflect.New(reflect.TypeOf(ev))
 		if err := UnmarshalEvent(anns, evv.Interface().(Event)); err != nil {
 			return err
@@ -99,9 +108,9 @@ func UnmarshalEvents(anns Annotations, events *[]Event) error {
 }
 
 // A spanName event sets a span's name.
-type spanName string
+type spanName struct{ Name string }
 
-func (spanName) Schema() string { return nameKey }
+func (spanName) Schema() string { return "name" }
 
 // Msg returns an Event that contains only a human-readable message.
 func Msg(msg string) Event {
@@ -113,6 +122,13 @@ type msgEvent struct {
 }
 
 func (msgEvent) Schema() string { return "msg" }
+
+// A TimespanEvent is an Event with a start and an end time.
+type TimespanEvent interface {
+	Event
+	Start() time.Time
+	End() time.Time
+}
 
 // A TimestampedEvent is an Event with a timestamp.
 type TimestampedEvent interface {
