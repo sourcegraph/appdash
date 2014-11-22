@@ -2,11 +2,8 @@ package main
 
 import (
 	"log"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
-
-	"sourcegraph.com/sourcegraph/apptrace"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -24,21 +21,10 @@ func init() {
 	CLI.AddGroup("Global options", "", &GlobalOpt)
 }
 
-var (
-	Store   = apptrace.NewMemoryStore()
-	Queryer = Store
-)
-
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 	if _, err := CLI.Parse(); err != nil {
 		os.Exit(1)
 	}
-}
-
-func init() {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 }

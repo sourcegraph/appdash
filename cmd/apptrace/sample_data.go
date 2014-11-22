@@ -7,7 +7,7 @@ import (
 	"sourcegraph.com/sourcegraph/apptrace"
 )
 
-func sampleData(s apptrace.Store) error {
+func sampleData(c apptrace.Collector) error {
 	const (
 		numTraces        = 5
 		numSpansPerTrace = 7
@@ -26,7 +26,7 @@ func sampleData(s apptrace.Store) error {
 				spanID = apptrace.NewSpanID(lastSpanID) // parent is predecessor
 			}
 
-			rec := apptrace.NewRecorder(spanID, Store)
+			rec := apptrace.NewRecorder(spanID, c)
 			rec.Name(fakeNames[int(j+i)%len(fakeNames)])
 			if j%3 == 0 {
 				rec.Log("hello")
