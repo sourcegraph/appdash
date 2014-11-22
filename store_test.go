@@ -45,6 +45,26 @@ func TestMemoryStore_Collect_collectSameTwice(t *testing.T) {
 	}
 }
 
+func TestMemoryStore_Collect_collectSameChildTwice(t *testing.T) {
+	ms := storeT{t, NewMemoryStore()}
+
+	t.Log("collect trace 1")
+	ms.MustCollect(SpanID{1, 1, 0})
+
+	t.Log("collect trace 2")
+	ms.MustCollect(SpanID{1, 2, 1}, Annotation{Key: "k1"})
+	ms.MustCollect(SpanID{1, 2, 1}, Annotation{Key: "k2"})
+	want1 := &Trace{
+		Span: Span{ID: SpanID{1, 1, 0}},
+		Sub: []*Trace{
+			{Span: Span{SpanID{1, 2, 1}, Annotations{{Key: "k1"}, {Key: "k2"}}}},
+		},
+	}
+	if x := ms.MustTrace(1); !reflect.DeepEqual(x, want1) {
+		t.Errorf("Trace(1): got trace %+v, want %+v", x, want1)
+	}
+}
+
 func TestMemoryStore_Collect_collectTwo(t *testing.T) {
 	ms := storeT{t, NewMemoryStore()}
 

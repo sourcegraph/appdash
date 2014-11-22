@@ -83,6 +83,7 @@ func (ms *MemoryStore) Collect(id SpanID, as ...Annotation) error {
 			}
 		}
 		s.Annotations = append(s.Annotations, as...)
+		return nil
 	}
 
 	// Create trace tree if it doesn't already exist.
