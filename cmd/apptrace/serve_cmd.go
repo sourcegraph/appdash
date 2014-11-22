@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"strings"
 
 	"sourcegraph.com/sourcegraph/apptrace"
 	"sourcegraph.com/sourcegraph/apptrace/traceapp"
@@ -40,6 +44,8 @@ type ServeCmd struct {
 
 	TLSCert string `long:"tls-cert" description:"TLS certificate file (if set, enables TLS)"`
 	TLSKey  string `long:"tls-key" description:"TLS key file (if set, enables TLS)"`
+
+	BasicAuth string `long:"basic-auth" description:"if set to 'user:passwd', require HTTP Basic Auth for web app"`
 }
 
 var serveCmd ServeCmd
@@ -88,6 +94,22 @@ func (c *ServeCmd) Execute(args []string) error {
 	app.Store = Store
 	app.Queryer = Queryer
 
+	var h http.Handler
+	if c.BasicAuth != "" {
+		parts := strings.SplitN(c.BasicAuth, ":", 2)
+		if len(parts) != 2 {
+			log.Fatalf("Basic auth must be specified as 'user:passwd'.")
+		}
+		user, passwd := parts[0], parts[1]
+		if user == "" || passwd == "" {
+			log.Fatalf("Basic auth user and passwd must both be nonempty.")
+		}
+		log.Printf("Requiring HTTP Basic auth")
+		h = newBasicAuthHandler(user, passwd, app)
+	} else {
+		h = app
+	}
+
 	if c.SampleData {
 		sampleData(Store)
 	}
@@ -131,9 +153,30 @@ func (c *ServeCmd) Execute(args []string) error {
 
 	if c.TLSCert != "" || c.TLSKey != "" {
 		log.Printf("apptrace HTTPS server listening on %s (TLS cert %s, key %s)", c.HTTPAddr, c.TLSCert, c.TLSKey)
-		return http.ListenAndServeTLS(c.HTTPAddr, c.TLSCert, c.TLSKey, app)
+		return http.ListenAndServeTLS(c.HTTPAddr, c.TLSCert, c.TLSKey, h)
 	} else {
 		log.Printf("apptrace HTTP server listening on %s", c.HTTPAddr)
-		return http.ListenAndServe(c.HTTPAddr, app)
+		return http.ListenAndServe(c.HTTPAddr, h)
 	}
+}
+
+func newBasicAuthHandler(user, passwd string, h http.Handler) http.Handler {
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, passwd)))
+	return &basicAuthHandler{h, []byte(want)}
+}
+
+type basicAuthHandler struct {
+	http.Handler
+	want []byte // = "Basic " base64(user ":" passwd) [precomputed]
+}
+
+func (h *basicAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Constant time comparison to avoid timing attack.
+	authHdr := r.Header.Get("authorization")
+	if len(h.want) == len(authHdr) && subtle.ConstantTimeCompare(h.want, []byte(authHdr)) == 1 {
+		h.Handler.ServeHTTP(w, r)
+		return
+	}
+	w.Header().Set("WWW-Authenticate", `Basic realm="apptrace"`)
+	http.Error(w, "unauthorized", http.StatusUnauthorized)
 }
