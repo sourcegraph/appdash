@@ -83,8 +83,6 @@ func Middleware(c apptrace.Collector, conf *MiddlewareConfig) func(rw http.Respo
 
 		if !setSpanIDFromClient {
 			e.Request = requestInfo(r)
-			log.Printf("e.Request = %+v", e.Request)
-			log.Printf("e.Response = %+v", responseInfo(rr.partialResponse()))
 		}
 		e.Response = responseInfo(rr.partialResponse())
 		e.ServerSend = time.Now()
