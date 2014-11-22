@@ -1,6 +1,7 @@
 package traceapp
 
 import (
+	"fmt"
 	"time"
 
 	"sourcegraph.com/sourcegraph/apptrace"
@@ -9,9 +10,10 @@ import (
 )
 
 type timelineItem struct {
-	Label string                 `json:"label"`
-	Times []timelineItemTimespan `json:"times"`
-	Data  map[string]string      `json:"-"`
+	Label  string                  `json:"label"`
+	Times  []*timelineItemTimespan `json:"times"`
+	Data   map[string]string       `json:"rawData"`
+	SpanID string                  `json:"spanID"`
 }
 
 type timelineItemTimespan struct {
@@ -28,18 +30,21 @@ func d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
 		return nil, err
 	}
 
-	item := timelineItem{Label: t.Span.Name(), Data: t.Annotations.StringMap()}
+	item := timelineItem{
+		Label:  t.Span.Name(),
+		Data:   t.Annotations.StringMap(),
+		SpanID: t.Span.ID.Span.String(),
+	}
 	for _, e := range events {
 		if e, ok := e.(apptrace.TimespanEvent); ok {
 			start := e.Start().UnixNano() / int64(time.Millisecond)
 			end := e.End().UnixNano() / int64(time.Millisecond)
 			ts := timelineItemTimespan{
-				Label: t.Span.Name(),
 				Start: start,
 				End:   end,
 			}
 			if item.Times == nil {
-				item.Times = append(item.Times, ts)
+				item.Times = append(item.Times, &ts)
 			} else {
 				if item.Times[0].Start > start {
 					item.Times[0].Start = start
@@ -48,6 +53,12 @@ func d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
 					item.Times[0].End = end
 				}
 			}
+		}
+	}
+	for _, ts := range item.Times {
+		msec := time.Duration(item.Times[0].End-item.Times[0].Start) * time.Millisecond
+		if msec > 0 {
+			ts.Label = fmt.Sprintf("%s (%s)", item.Label, msec)
 		}
 	}
 	items = append(items, item)

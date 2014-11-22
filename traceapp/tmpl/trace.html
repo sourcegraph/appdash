@@ -64,10 +64,8 @@
                    div.find('#name').text(datum.label);
                  })
                  .click(function (d, i, datum) {
-                   alert(JSON.stringify(datum.data, null, 2));
-                 })
-                 .scroll(function (x, scale) {
-                   $("#scrolled_date").text(scale.invert(x) + " to " + scale.invert(x+width));
+                   window.location.hash = "#span-" + datum.spanID;
+                   //alert(JSON.stringify(datum.rawData, null, 2));
                  });
    var svg = d3.select(".trace-timeline").append("svg").attr("width", width)
                .datum(data).call(chart);

@@ -1,5 +1,5 @@
 {{define "Trace"}}
-<li class="trace">
+<li class="trace" id="span-{{.Span.ID.Span}}">
   {{template "SpanLabel" .Span}}
   {{if .Span.Annotations}}
   <table class="table table-condensed table-striped">
