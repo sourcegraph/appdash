@@ -1,8 +1,12 @@
 package apptrace
 
 import (
+	"encoding/gob"
 	"errors"
+	"io"
+	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -38,6 +42,7 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
+// A MemoryStore is an in-memory Store.
 type MemoryStore struct {
 	trace map[ID]*Trace        // trace ID -> trace tree
 	span  map[ID]map[ID]*Trace // trace ID -> span ID -> trace (sub)tree
@@ -222,6 +227,67 @@ func (ms *MemoryStore) Delete(traces ...ID) error {
 		delete(ms.span, id)
 	}
 	return nil
+}
+
+type memoryStoreData struct {
+	Trace map[ID]*Trace
+	Span  map[ID]map[ID]*Trace
+}
+
+// Write writes ms's internal data structures.
+func (ms *MemoryStore) Write(w io.Writer) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	data := memoryStoreData{ms.trace, ms.span}
+	return gob.NewEncoder(w).Encode(data)
+}
+
+// ReadFrom loads ms's internal data structures from a reader.
+func (ms *MemoryStore) ReadFrom(r io.Reader) (int64, error) {
+	ms.Lock()
+	defer ms.Unlock()
+
+	var data memoryStoreData
+	if err := gob.NewDecoder(r).Decode(&data); err != nil {
+		return 0, err
+	}
+	ms.trace = data.Trace
+	ms.span = data.Span
+	return int64(len(ms.trace)), nil
+}
+
+// PersistentStore is a Store that can persist its data and read it
+// back in.
+type PersistentStore interface {
+	Write(io.Writer) error
+	ReadFrom(io.Reader) (int64, error)
+	Store
+}
+
+// PersistEvery persists s's data to a file periodically.
+func PersistEvery(s PersistentStore, interval time.Duration, file string) error {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			f, err := ioutil.TempFile("", "apptrace")
+			if err != nil {
+				return err
+			}
+			if err := s.Write(f); err != nil {
+				f.Close()
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+			if err := os.Rename(f.Name(), file); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // A DeleteStore is a Store that can delete traces.

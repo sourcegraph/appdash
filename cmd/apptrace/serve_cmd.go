@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"sourcegraph.com/sourcegraph/apptrace"
@@ -29,6 +30,9 @@ type ServeCmd struct {
 	HTTPAddr      string `long:"http" description:"HTTP listen address" default:":7700"`
 	SampleData    bool   `long:"sample-data" description:"add sample data"`
 
+	StoreFile       string        `short:"f" long:"store-file" description:"persisted store file" default:"/tmp/apptrace.gob"`
+	PersistInterval time.Duration `short:"p" long:"persist-interval" description:"interval between persisting store to file" default:"2s"`
+
 	Debug bool `short:"d" long:"debug" description:"debug log"`
 	Trace bool `long:"trace" description:"trace log"`
 
@@ -46,6 +50,31 @@ func (c *ServeCmd) Execute(args []string) error {
 		Store    = apptrace.Store(memStore)
 		Queryer  = memStore
 	)
+
+	if c.StoreFile != "" {
+		f, err := os.Open(c.StoreFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if f != nil {
+			if n, err := memStore.ReadFrom(f); err == nil {
+				log.Printf("Read %d traces from file %s", n, c.StoreFile)
+			} else if err != nil {
+				f.Close()
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+		}
+		if c.PersistInterval != 0 {
+			go func() {
+				if err := apptrace.PersistEvery(memStore, c.PersistInterval, c.StoreFile); err != nil {
+					log.Fatal(err)
+				}
+			}()
+		}
+	}
 
 	if c.DeleteAfter > 0 {
 		Store = &apptrace.RecentStore{
