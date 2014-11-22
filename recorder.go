@@ -28,6 +28,12 @@ func NewRecorder(span SpanID, c Collector) *Recorder {
 	}
 }
 
+// Child creates a new Recorder with the same collector and a new
+// child SpanID whose parent is this recorder's SpanID.
+func (r *Recorder) Child() *Recorder {
+	return NewRecorder(NewSpanID(r.SpanID), r.collector)
+}
+
 // Name sets the name of this span.
 func (r *Recorder) Name(name string) {
 	r.Event(spanName(name))

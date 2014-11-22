@@ -192,3 +192,14 @@ func (as Annotations) get(key string) []byte {
 	}
 	return nil
 }
+
+// StringMap returns the annotations as a key-value map. Only one
+// annotation for a key appears in the map, and it is chosen
+// arbitrarily among the annotations with the same key.
+func (as Annotations) StringMap() map[string]string {
+	m := make(map[string]string, len(as))
+	for _, a := range as {
+		m[a.Key] = string(a.Value)
+	}
+	return m
+}

@@ -3,7 +3,6 @@ package apptrace
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 )
 
@@ -66,21 +65,7 @@ func UnmarshalEvent(as Annotations, e Event) error {
 		return &EventSchemaUnmarshalError{Found: aSchemas, Target: e.Schema()}
 	}
 
-	// TODO(sqs): only handles top-level values
-	ev := reflect.ValueOf(e)
-	if ev.Kind() == reflect.Ptr {
-		ev = ev.Elem()
-	}
-	for _, a := range as {
-		if strings.HasPrefix(a.Key, schemaPrefix) {
-			continue
-		}
-		// TODO(sqs): also look for struct tags
-		fld := ev.FieldByName(a.Key)
-		if fld.IsValid() && fld.CanSet() && fld.Type().Kind() == reflect.String {
-			fld.Set(reflect.ValueOf(string(a.Value)))
-		}
-	}
+	unflattenValue("", reflect.ValueOf(&e), reflect.TypeOf(&e), mapToKVs(as.StringMap()))
 	return nil
 }
 

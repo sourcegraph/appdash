@@ -1,15 +1,17 @@
 package apptrace
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
 )
 
 func TestFlattenBools(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value bool
-	}{
+	}
+	e := T{
 		Value: true,
 	}
 
@@ -24,12 +26,21 @@ func TestFlattenBools(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenStrings(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value string
-	}{
+	}
+	e := T{
 		Value: "bar",
 	}
 
@@ -44,12 +55,21 @@ func TestFlattenStrings(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenNamedValues(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value string `trace:"foo"`
-	}{
+	}
+	e := T{
 		Value: "bar",
 	}
 
@@ -64,12 +84,21 @@ func TestFlattenNamedValues(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenTime(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value time.Time
-	}{
+	}
+	e := T{
 		Value: time.Date(2014, 5, 16, 12, 28, 38, 400, time.UTC),
 	}
 
@@ -84,13 +113,22 @@ func TestFlattenTime(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenFloats(t *testing.T) {
-	e := struct {
+	type T struct {
 		A float32
 		B float64
-	}{
+	}
+	e := T{
 		A: 3,
 		B: 500.3,
 	}
@@ -107,16 +145,29 @@ func TestFlattenFloats(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(gotE.B-e.B) > 0.01 {
+		t.Errorf("got B = %f, want %f", gotE.B, e.B)
+	}
+	gotE.B = e.B
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenInts(t *testing.T) {
-	e := struct {
+	type T struct {
 		A int8
 		B int16
 		C int32
 		D int64
 		E int
-	}{
+	}
+	e := T{
 		A: 1,
 		B: 2,
 		C: 3,
@@ -139,16 +190,25 @@ func TestFlattenInts(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenUints(t *testing.T) {
-	e := struct {
+	type T struct {
 		A uint8
 		B uint16
 		C uint32
 		D uint64
 		E uint
-	}{
+	}
+	e := T{
 		A: 1,
 		B: 2,
 		C: 3,
@@ -171,12 +231,21 @@ func TestFlattenUints(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenMaps(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value map[string]int
-	}{
+	}
+	e := T{
 		Value: map[string]int{
 			"one": 1,
 			"two": 2,
@@ -195,12 +264,21 @@ func TestFlattenMaps(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenSlices(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value []int
-	}{
+	}
+	e := T{
 		Value: []int{1, 2, 3},
 	}
 
@@ -217,12 +295,21 @@ func TestFlattenSlices(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenArrays(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value [3]int
-	}{
+	}
+	e := T{
 		Value: [3]int{1, 2, 3},
 	}
 
@@ -239,6 +326,14 @@ func TestFlattenArrays(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 type stringer byte
@@ -248,9 +343,10 @@ func (stringer) String() string {
 }
 
 func TestFlattenStringers(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value stringer
-	}{
+	}
+	e := T{
 		Value: 30,
 	}
 
@@ -265,12 +361,18 @@ func TestFlattenStringers(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err == nil {
+		t.Error("unexpectedly successful unflattening into stringer (want strconv error: parsing 'stringer': invalid syntax)")
+	}
 }
 
 func TestFlattenArbitraryTypes(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value complex64
-	}{
+	}
+	e := T{
 		Value: complex(17, 4),
 	}
 
@@ -288,9 +390,10 @@ func TestFlattenArbitraryTypes(t *testing.T) {
 }
 
 func TestFlattenUnexportedFields(t *testing.T) {
-	e := struct {
+	type T struct {
 		value string
-	}{
+	}
+	e := T{
 		value: "bar",
 	}
 
@@ -306,7 +409,8 @@ func TestFlattenUnexportedFields(t *testing.T) {
 }
 
 func TestFlattenCacheFields(t *testing.T) {
-	e := struct{}{}
+	type T struct{}
+	e := T{}
 
 	got := make(map[string]string)
 	flattenValue("", reflect.ValueOf(e), func(k, v string) {
@@ -327,12 +431,21 @@ func TestFlattenCacheFields(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenDuration(t *testing.T) {
-	e := struct {
+	type T struct {
 		Value time.Duration
-	}{
+	}
+	e := T{
 		Value: 500 * time.Microsecond,
 	}
 
@@ -347,14 +460,27 @@ func TestFlattenDuration(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
 }
 
 func TestFlattenPointers(t *testing.T) {
+	type T struct {
+		S *string
+		I *int
+	}
+
 	s := "bar"
-	e := struct {
-		Value *string
-	}{
-		Value: &s,
+	i := 7
+	e := T{
+		S: &s,
+		I: &i,
 	}
 
 	got := make(map[string]string)
@@ -363,11 +489,82 @@ func TestFlattenPointers(t *testing.T) {
 	})
 
 	want := map[string]string{
-		"Value": "bar",
+		"S": "bar",
+		"I": "7",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(want)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, e) {
+		t.Errorf("got %#v, want %#v", gotE, e)
+	}
+}
+
+func TestUnflattenExtraValues(t *testing.T) {
+	type T struct {
+		S string
+		T map[string]int
+		X struct{ Y string }
+	}
+	m := map[string]string{
+		"A":     "a",
+		"R":     "s",
+		"S":     "s",
+		"T.k1":  "3",
+		"T.k2":  "4",
+		"T":     "t",
+		"U":     "5",
+		"X Y":   "1",
+		"X.Y":   "y",
+		"X":     "x",
+		"X.Y.Z": "4",
+		"Z":     "7",
+	}
+
+	want := T{
+		S: "s",
+		T: map[string]int{"k1": 3, "k2": 4},
+		X: struct{ Y string }{Y: "y"},
+	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(m)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, want) {
+		t.Errorf("got %#v, want %#v", gotE, want)
+	}
+}
+
+func TestUnflatten_emptyMap(t *testing.T) {
+	type T struct {
+		A string
+		B map[string]int
+		C string
+	}
+	m := map[string]string{
+		"A": "a",
+		"C": "c",
+	}
+
+	want := T{
+		A: "a",
+		C: "c",
+	}
+
+	var gotE T
+	if err := unflattenValue("", reflect.ValueOf(&gotE), reflect.TypeOf(&gotE), mapToKVs(m)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotE, want) {
+		t.Errorf("got %#v, want %#v", gotE, want)
+	}
+
 }
 
 type testInnerEvent struct {

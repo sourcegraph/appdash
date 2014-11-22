@@ -14,6 +14,11 @@ func TestMarshalEvent(t *testing.T) {
 		B: "b",
 		C: 1,
 		D: map[string]string{"k1": "v1", "k2": "v2"},
+		E: "e",
+		F: dummyEventF{
+			G: "g",
+			H: map[string]string{"k3": "v3", "k4": "v4"},
+		},
 	}
 	as, err := MarshalEvent(e)
 	if err != nil {
@@ -26,6 +31,10 @@ func TestMarshalEvent(t *testing.T) {
 		{Key: "C", Value: []byte("1")},
 		{Key: "D.k1", Value: []byte("v1")},
 		{Key: "D.k2", Value: []byte("v2")},
+		{Key: "e", Value: []byte("e")},
+		{Key: "F.G", Value: []byte("g")},
+		{Key: "F.H.k3", Value: []byte("v3")},
+		{Key: "F.H.k4", Value: []byte("v4")},
 		{Key: "_schema:dummy"},
 	}
 
@@ -38,13 +47,16 @@ func TestMarshalEvent(t *testing.T) {
 }
 
 func TestUnmarshalEvent(t *testing.T) {
-	// TODO(sqs): add C/D.k1/D.k2 props to test case (and other
-	// non-string types) when support is implemented.
-
 	as := Annotations{
 		{Key: "A", Value: []byte("a")},
 		{Key: "B", Value: []byte("b")},
 		{Key: "C", Value: []byte("1")},
+		{Key: "D.k1", Value: []byte("v1")},
+		{Key: "D.k2", Value: []byte("v2")},
+		{Key: "e", Value: []byte("e")},
+		{Key: "F.G", Value: []byte("g")},
+		{Key: "F.H.k3", Value: []byte("v3")},
+		{Key: "F.H.k4", Value: []byte("v4")},
 		{Key: "_schema:dummy"},
 	}
 
@@ -56,6 +68,13 @@ func TestUnmarshalEvent(t *testing.T) {
 	want := dummyEvent{
 		A: "a",
 		B: "b",
+		C: 1,
+		D: map[string]string{"k1": "v1", "k2": "v2"},
+		E: "e",
+		F: dummyEventF{
+			G: "g",
+			H: map[string]string{"k3": "v3", "k4": "v4"},
+		},
 	}
 
 	if !reflect.DeepEqual(e, want) {
@@ -115,6 +134,13 @@ type dummyEvent struct {
 	A, B string
 	C    int
 	D    map[string]string
+	E    string `trace:"e"`
+	F    dummyEventF
+}
+
+type dummyEventF struct {
+	G string
+	H map[string]string
 }
 
 func (dummyEvent) Schema() string { return "dummy" }
