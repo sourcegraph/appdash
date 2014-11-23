@@ -39,7 +39,10 @@ func TestGetSpanID_hasParentSpanID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.Trace != 100 || id.Span != 150 {
+	if id.Trace != 100 || id.Parent != 150 {
+		t.Errorf("unexpected span ID: %+v", id)
+	}
+	if id.Span == 150 {
 		t.Errorf("unexpected span ID: %+v", id)
 	}
 }

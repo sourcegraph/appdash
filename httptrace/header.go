@@ -49,6 +49,10 @@ func getSpanID(h http.Header) (spanID *apptrace.SpanID, fromHeader string, err e
 		if err != nil {
 			return nil, fromHeader, err
 		}
+		if spanID != nil {
+			newSpanID := apptrace.NewSpanID(*spanID)
+			spanID = &newSpanID
+		}
 	}
 
 	// Create a new root span ID.
