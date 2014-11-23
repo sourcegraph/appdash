@@ -59,15 +59,11 @@ func (e ServerEvent) End() time.Time   { return e.ServerSend }
 // collector c as "HTTPServer"-schema events.
 func Middleware(c apptrace.Collector, conf *MiddlewareConfig) func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	return func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-		spanID, err := GetSpanIDHeader(r.Header)
+		spanID, spanFromHeader, err := getSpanID(r.Header)
 		if err != nil {
-			log.Printf("Warning: invalid Span-ID header: %s. (Continuing with request handling.)", err)
+			log.Printf("Warning: invalid %s header: %s. (Continuing with request handling.)", spanFromHeader, err)
 		}
-		setSpanIDFromClient := (spanID != nil)
-		if spanID == nil {
-			newSpanID := apptrace.NewRootSpanID()
-			spanID = &newSpanID
-		}
+		usingProvidedSpanID := (spanFromHeader == HeaderSpanID)
 
 		if conf.SetContextSpan != nil {
 			conf.SetContextSpan(r, *spanID)
@@ -86,7 +82,7 @@ func Middleware(c apptrace.Collector, conf *MiddlewareConfig) func(rw http.Respo
 		next(rr, r)
 		SetSpanIDHeader(rr.Header(), *spanID)
 
-		if !setSpanIDFromClient {
+		if !usingProvidedSpanID {
 			e.Request = requestInfo(r)
 		}
 		e.Response = responseInfo(rr.partialResponse())
