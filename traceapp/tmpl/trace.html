@@ -41,13 +41,7 @@
 
 <script type="text/javascript">
  var data = {{d3timeline .Trace}};
- var width = 1000;
- function timelineRect() {
-   var chart = d3.timeline();
-   var svg = d3.select(".trace-timeline").append("svg").attr("width", width)
-               .datum(data).call(chart);
- }
-
+ var width = 2000;
 
  function timelineHover() {
    var chart = d3.timeline()
