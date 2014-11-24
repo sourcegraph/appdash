@@ -56,7 +56,7 @@ type MemoryStore struct {
 var _ interface {
 	Store
 	Queryer
-} = &MemoryStore{}
+} = (*MemoryStore)(nil)
 
 func (ms *MemoryStore) Collect(id SpanID, as ...Annotation) error {
 	ms.Lock()
