@@ -268,25 +268,22 @@ type PersistentStore interface {
 
 // PersistEvery persists s's data to a file periodically.
 func PersistEvery(s PersistentStore, interval time.Duration, file string) error {
-	t := time.NewTicker(interval)
-	defer t.Stop()
 	for {
-		select {
-		case <-t.C:
-			f, err := ioutil.TempFile("", "apptrace")
-			if err != nil {
-				return err
-			}
-			if err := s.Write(f); err != nil {
-				f.Close()
-				return err
-			}
-			if err := f.Close(); err != nil {
-				return err
-			}
-			if err := os.Rename(f.Name(), file); err != nil {
-				return err
-			}
+		time.Sleep(interval)
+
+		f, err := ioutil.TempFile("", "apptrace")
+		if err != nil {
+			return err
+		}
+		if err := s.Write(f); err != nil {
+			f.Close()
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+		if err := os.Rename(f.Name(), file); err != nil {
+			return err
 		}
 	}
 }
