@@ -33,6 +33,7 @@ func New(r *Router) *App {
 
 	r.r.Get(RootRoute).Handler(handlerFunc(app.serveRoot))
 	r.r.Get(TraceRoute).Handler(handlerFunc(app.serveTrace))
+	r.r.Get(TraceSpanRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TracesRoute).Handler(handlerFunc(app.serveTraces))
 
 	return app
@@ -50,13 +51,15 @@ func (a *App) serveRoot(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
-	id, err := apptrace.ParseID(mux.Vars(r)["Trace"])
+	v := mux.Vars(r)
+
+	traceID, err := apptrace.ParseID(v["Trace"])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}
 
-	trace, err := a.Store.Trace(id)
+	trace, err := a.Store.Trace(traceID)
 	if err != nil {
 		if err == apptrace.ErrTraceNotFound {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -65,13 +68,32 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// Get sub-span if the Span route var is present.
+	if spanIDStr := v["Span"]; spanIDStr != "" {
+		spanID, err := apptrace.ParseID(spanIDStr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return err
+		}
+		trace = trace.FindSpan(spanID)
+		if trace == nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return nil
+		}
+	}
+
+	visData, err := a.d3timeline(trace)
+	if err != nil {
+		return err
+	}
+
 	return a.renderTemplate(w, r, "trace.html", http.StatusOK, &struct {
 		TemplateCommon
-		TraceID apptrace.ID
 		Trace   *apptrace.Trace
+		VisData []timelineItem
 	}{
-		TraceID: id,
 		Trace:   trace,
+		VisData: visData,
 	})
 }
 

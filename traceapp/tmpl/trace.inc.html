@@ -9,12 +9,14 @@
   </table>
   {{end}}
 
+  {{if descendTraces}}
   {{if .Sub}}
   <ul class="sub traces">
     {{range .Sub}}
     {{template "Trace" .}}
     {{end}}
   </ul>
+  {{end}}
   {{end}}
 </li>
 {{end}}

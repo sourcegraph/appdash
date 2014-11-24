@@ -94,7 +94,7 @@ func (a *App) parseHTMLTemplates(sets [][]string) error {
 			"str":               func(v interface{}) string { return fmt.Sprintf("%s", v) },
 			"durationClass":     durationClass,
 			"filterAnnotations": filterAnnotations,
-			"d3timeline":        d3timeline,
+			"descendTraces":     func() bool { return false },
 		})
 		_, err := t.ParseFiles(joinTemplateDir(TemplateDir, set)...)
 		if err != nil {

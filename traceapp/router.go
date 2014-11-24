@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	RootRoute   = "traceapp.root"   // route name for root
-	TraceRoute  = "traceapp.trace"  // route name for a single trace page
-	TracesRoute = "traceapp.traces" // route name for traces page
+	RootRoute      = "traceapp.root"       // route name for root
+	TraceRoute     = "traceapp.trace"      // route name for a single trace page
+	TraceSpanRoute = "traceapp.trace.span" // route name for a single trace sub-span page
+	TracesRoute    = "traceapp.traces"     // route name for traces page
 )
 
 type Router struct{ r *mux.Router }
@@ -23,6 +24,7 @@ func NewRouter(base *mux.Router) *Router {
 	}
 	base.Path("/").Methods("GET").Name(RootRoute)
 	base.Path("/traces/{Trace}").Methods("GET").Name(TraceRoute)
+	base.Path("/traces/{Trace}/{Span}").Methods("GET").Name(TraceSpanRoute)
 	base.Path("/traces").Methods("GET").Name(TracesRoute)
 	return &Router{base}
 }
@@ -39,4 +41,9 @@ func (r *Router) URLTo(route string) (*url.URL, error) {
 // URLToTrace constructs a URL to a given trace by ID.
 func (r *Router) URLToTrace(id apptrace.ID) (*url.URL, error) {
 	return r.r.Get(TraceRoute).URL("Trace", id.String())
+}
+
+// URLToTraceSpan constructs a URL to a sub-span in a trace.
+func (r *Router) URLToTraceSpan(trace, span apptrace.ID) (*url.URL, error) {
+	return r.r.Get(TraceSpanRoute).URL("Trace", trace.String(), "Span", span.String())
 }

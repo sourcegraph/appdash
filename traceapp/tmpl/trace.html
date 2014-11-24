@@ -1,10 +1,11 @@
-{{define "Title"}}Trace {{.TraceID}} - apptrace{{end}}
+{{define "Title"}}{{if .Trace.ID.Parent}}span {{.Trace.ID.Span}} - {{end}} trace {{.Trace.ID.Trace}} - apptrace{{end}}
 
 {{define "Main"}}
-<h1>Trace {{.TraceID}}</h1>
+<h1>Trace {{.Trace.ID.Trace}}</h1>
+{{if .Trace.ID.Parent}}<h2>Sub-span {{.Trace.ID.Span}}</h2>{{end}}
 
 <div>
-<div id="#trace-{{.TraceID}}" class="trace-timeline"></div>
+<div id="#trace-{{.Trace.ID.Trace}}" class="trace-timeline"></div>
 <div id="hoverRes">
   <div class="coloredDiv"></div>
   <div id="name"></div>
@@ -40,7 +41,7 @@
 </style>
 
 <script type="text/javascript">
- var data = {{d3timeline .Trace}};
+ var data = {{.VisData}};
  var width = 2000;
 
  function timelineHover() {
@@ -58,7 +59,7 @@
                    div.find('#name').text(datum.label);
                  })
                  .click(function (d, i, datum) {
-                   window.location.hash = "#span-" + datum.spanID;
+                   window.location.href = datum.url;
                    //alert(JSON.stringify(datum.rawData, null, 2));
                  });
    var svg = d3.select(".trace-timeline").append("svg").attr("width", width)

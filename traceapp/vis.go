@@ -2,6 +2,7 @@ package traceapp
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"sourcegraph.com/sourcegraph/apptrace"
@@ -15,6 +16,7 @@ type timelineItem struct {
 	Times  []*timelineItemTimespan `json:"times"`
 	Data   map[string]string       `json:"rawData"`
 	SpanID string                  `json:"spanID"`
+	URL    string                  `json:"url"`
 }
 
 type timelineItemTimespan struct {
@@ -23,7 +25,11 @@ type timelineItemTimespan struct {
 	End   int64  `json:"ending_time"`   // msec since epoch
 }
 
-func d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
+func (a *App) d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
+	return a.d3timelineInner(t, 0)
+}
+
+func (a *App) d3timelineInner(t *apptrace.Trace, depth int) ([]timelineItem, error) {
 	var items []timelineItem
 
 	var events []apptrace.Event
@@ -31,10 +37,26 @@ func d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
 		return nil, err
 	}
 
+	var u *url.URL
+	if t.ID.Parent == 0 {
+		var err error
+		u, err = a.URLToTrace(t.ID.Trace)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		u, err = a.URLToTraceSpan(t.ID.Trace, t.ID.Span)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	item := timelineItem{
 		Label:  t.Span.Name(),
 		Data:   t.Annotations.StringMap(),
 		SpanID: t.Span.ID.Span.String(),
+		URL:    u.String(),
 	}
 	for _, e := range events {
 		if e, ok := e.(apptrace.TimespanEvent); ok {
@@ -44,14 +66,19 @@ func d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
 				Start: start,
 				End:   end,
 			}
-			if item.Times == nil {
+			if depth == 0 {
+				ts.Label = e.Schema()
 				item.Times = append(item.Times, &ts)
 			} else {
-				if item.Times[0].Start > start {
-					item.Times[0].Start = start
-				}
-				if item.Times[0].End < end {
-					item.Times[0].End = end
+				if item.Times == nil {
+					item.Times = append(item.Times, &ts)
+				} else {
+					if item.Times[0].Start > start {
+						item.Times[0].Start = start
+					}
+					if item.Times[0].End < end {
+						item.Times[0].End = end
+					}
 				}
 			}
 		}
@@ -65,7 +92,7 @@ func d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
 	items = append(items, item)
 
 	for _, child := range t.Sub {
-		subItems, err := d3timeline(child)
+		subItems, err := a.d3timelineInner(child, depth+1)
 		if err != nil {
 			return nil, err
 		}

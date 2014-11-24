@@ -23,6 +23,20 @@ func (t *Trace) String() string {
 	return string(b)
 }
 
+// FindSpan recursively searches for a span whose Span ID is spanID in
+// t and its descendants. If no such span is found, nil is returned.
+func (t *Trace) FindSpan(spanID ID) *Trace {
+	if t.ID.Span == spanID {
+		return t
+	}
+	for _, sub := range t.Sub {
+		if s := sub.FindSpan(spanID); s != nil {
+			return s
+		}
+	}
+	return nil
+}
+
 // TreeString returns the Trace as a formatted string that visually
 // represents the trace's tree.
 func (t *Trace) TreeString() string {

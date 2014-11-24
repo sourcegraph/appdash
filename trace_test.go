@@ -54,3 +54,39 @@ func TestTrace_TreeString(t *testing.T) {
 		t.Errorf("got TreeString\n%s\n\nwant TreeString\n%s", ts, want)
 	}
 }
+
+func TestTrace_FindSpan(t *testing.T) {
+	x := &Trace{
+		Span: Span{
+			ID:          SpanID{1, 1, 0},
+			Annotations: []Annotation{{Key: "k", Value: []byte("v")}},
+		},
+		Sub: []*Trace{
+			{
+				Span: Span{
+					ID:          SpanID{1, 2, 1},
+					Annotations: []Annotation{{Key: "k", Value: []byte("v")}},
+				},
+				Sub: []*Trace{
+					{
+						Span: Span{
+							ID:          SpanID{1, 3, 2},
+							Annotations: []Annotation{{Key: "k", Value: []byte("v")}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testSpanIDs := []ID{1, 2, 3}
+	for _, id := range testSpanIDs {
+		span := x.FindSpan(id)
+		if span == nil {
+			t.Errorf("%v: got nil, want found", id)
+		}
+		if span.Span.ID.Span != id {
+			t.Errorf("%v: got span ID %v, want %v", id, span.Span.ID.Span, id)
+		}
+	}
+}
