@@ -42,13 +42,19 @@
 
 <script type="text/javascript">
  var data = {{.VisData}};
- var width = 2000;
+ var width = $(".container").width();
+
+ // em converts the input (in em units) to pixels units and returns it.
+ function em(emUnits) {
+   var fontSize = parseFloat($('body').css('font-size'));
+   return fontSize * emUnits;
+ }
 
  function timelineHover() {
    var chart = d3.timeline()
                  .width(width)
                  .stack()
-                 .margin({left:70, right:30, top:0, bottom:0})
+                 .margin({left:em(6), right:0, top:0, bottom:0})
                  .hover(function (d, i, datum) {
                    // d is the current rendering object
                    // i is the index during d3 rendering
