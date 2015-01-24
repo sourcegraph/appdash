@@ -17,14 +17,12 @@ func TestCollectorServer(t *testing.T) {
 		packets   []collectPacket
 		packetsMu sync.Mutex
 	)
-	mc := &mockCollector{
-		Collect_: func(span SpanID, anns ...Annotation) error {
-			packetsMu.Lock()
-			defer packetsMu.Unlock()
-			packets = append(packets, collectPacket{span, anns})
-			return nil
-		},
-	}
+	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		packetsMu.Lock()
+		defer packetsMu.Unlock()
+		packets = append(packets, collectPacket{span, anns})
+		return nil
+	})
 
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -69,21 +67,19 @@ func TestCollectorServer_stress(t *testing.T) {
 		packets   = map[SpanID]struct{}{}
 		packetsMu sync.Mutex
 	)
-	mc := &mockCollector{
-		Collect_: func(span SpanID, anns ...Annotation) error {
-			packetsMu.Lock()
-			defer packetsMu.Unlock()
-			packets[span] = struct{}{}
-			// log.Printf("Added %v", span)
+	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		packetsMu.Lock()
+		defer packetsMu.Unlock()
+		packets[span] = struct{}{}
+		// log.Printf("Added %v", span)
 
-			// Occasional errors, which should cause the client to
-			// reconnect.
-			if len(packets)%(errorEvery+1) == 0 {
-				return errors.New("fake error")
-			}
-			return nil
-		},
-	}
+		// Occasional errors, which should cause the client to
+		// reconnect.
+		if len(packets)%(errorEvery+1) == 0 {
+			return errors.New("fake error")
+		}
+		return nil
+	})
 
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -122,12 +118,10 @@ func TestCollectorServer_stress(t *testing.T) {
 
 func TestTLSCollectorServer(t *testing.T) {
 	var numPackets int
-	mc := &mockCollector{
-		Collect_: func(span SpanID, anns ...Annotation) error {
-			numPackets++
-			return nil
-		},
-	}
+	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		numPackets++
+		return nil
+	})
 
 	l, err := tls.Listen("tcp", "127.0.0.1:0", &localhostTLSConfig)
 	if err != nil {
@@ -153,12 +147,10 @@ func TestTLSCollectorServer(t *testing.T) {
 
 func TestChunkedCollector(t *testing.T) {
 	var packets []collectPacket
-	mc := &mockCollector{
-		Collect_: func(span SpanID, anns ...Annotation) error {
-			packets = append(packets, collectPacket{span, anns})
-			return nil
-		},
-	}
+	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		packets = append(packets, collectPacket{span, anns})
+		return nil
+	})
 
 	cc := &ChunkedCollector{
 		Collector:   mc,
@@ -195,12 +187,12 @@ func TestChunkedCollector(t *testing.T) {
 	}
 }
 
-type mockCollector struct {
-	Collect_ func(SpanID, ...Annotation) error
-}
+// collectorFunc implements the Collector interface by calling the function.
+type collectorFunc func(SpanID, ...Annotation) error
 
-func (c mockCollector) Collect(id SpanID, as ...Annotation) error {
-	return c.Collect_(id, as...)
+// Collect implements the Collector interface by calling the function itself.
+func (c collectorFunc) Collect(id SpanID, as ...Annotation) error {
+	return c(id, as...)
 }
 
 type collectorT struct {

@@ -14,16 +14,14 @@ func TestRecorder(t *testing.T) {
 
 	calledCollect := 0
 	var anns Annotations
-	c := mockCollector{
-		Collect_: func(spanID SpanID, as ...Annotation) error {
-			calledCollect++
-			if spanID != id {
-				t.Errorf("Collect: got spanID arg %v, want %v", spanID, id)
-			}
-			anns = append(anns, as...)
-			return nil
-		},
-	}
+	c := collectorFunc(func(spanID SpanID, as ...Annotation) error {
+		calledCollect++
+		if spanID != id {
+			t.Errorf("Collect: got spanID arg %v, want %v", spanID, id)
+		}
+		anns = append(anns, as...)
+		return nil
+	})
 
 	r := NewRecorder(id, c)
 
@@ -47,12 +45,10 @@ func TestRecorder(t *testing.T) {
 func TestRecorder_Errors(t *testing.T) {
 	collectErr := errors.New("Collect error")
 	calledCollect := 0
-	c := mockCollector{
-		Collect_: func(spanID SpanID, as ...Annotation) error {
-			calledCollect++
-			return collectErr
-		},
-	}
+	c := collectorFunc(func(spanID SpanID, as ...Annotation) error {
+		calledCollect++
+		return collectErr
+	})
 
 	r := NewRecorder(SpanID{}, c)
 
