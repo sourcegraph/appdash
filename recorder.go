@@ -51,6 +51,8 @@ func (r *Recorder) Log(msg string) {
 	r.Event(Log(msg))
 }
 
+// Event records any event that implements the Event, TimespanEvent, or
+// TimestampedEvent interfaces.
 func (r *Recorder) Event(e Event) {
 	as, err := MarshalEvent(e)
 	if err != nil {

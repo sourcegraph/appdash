@@ -58,6 +58,8 @@ var _ interface {
 	Queryer
 } = (*MemoryStore)(nil)
 
+// Collect implements the Collector interface by collecting the events that
+// occured in the span in-memory.
 func (ms *MemoryStore) Collect(id SpanID, as ...Annotation) error {
 	ms.Lock()
 	defer ms.Unlock()
@@ -189,6 +191,9 @@ func (ms *MemoryStore) reattachChildren(dst, src *Trace) {
 	src.Sub = sub2
 }
 
+// Trace implements the Store interface by returning the Trace (a tree of
+// spans) for the given trace span ID or, if no such trace exists, by returning
+// ErrTraceNotFound.
 func (ms *MemoryStore) Trace(id ID) (*Trace, error) {
 	ms.Lock()
 	defer ms.Unlock()
@@ -204,6 +209,7 @@ func (ms *MemoryStore) traceNoLock(id ID) (*Trace, error) {
 	return t, nil
 }
 
+// Traces implements the Queryer interface.
 func (ms *MemoryStore) Traces() ([]*Trace, error) {
 	ms.Lock()
 	defer ms.Unlock()
@@ -219,6 +225,8 @@ func (ms *MemoryStore) Traces() ([]*Trace, error) {
 	return ts, nil
 }
 
+// Delete implements the DeleteStore interface by deleting the traces given by
+// their span ID's from this in-memory store.
 func (ms *MemoryStore) Delete(traces ...ID) error {
 	ms.Lock()
 	defer ms.Unlock()
