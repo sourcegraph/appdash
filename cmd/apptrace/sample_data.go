@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/apptrace/sqltrace"
 )
 
 func sampleData(c apptrace.Collector) error {
@@ -15,16 +17,14 @@ func sampleData(c apptrace.Collector) error {
 	log.Printf("Adding sample data (%d traces with %d spans each)", numTraces, numSpansPerTrace)
 	for i := apptrace.ID(1); i <= numTraces; i++ {
 		traceID := apptrace.NewRootSpanID()
-		var lastSpanID apptrace.SpanID
-		for j := apptrace.ID(0); j < numSpansPerTrace; j++ {
-			var spanID apptrace.SpanID
-			if j == 0 {
-				spanID = traceID // root
-			} else if j == 1 {
-				spanID = apptrace.NewSpanID(traceID) // parent is root
-			} else {
-				spanID = apptrace.NewSpanID(lastSpanID) // parent is predecessor
-			}
+		traceRec := apptrace.NewRecorder(traceID, c)
+		traceRec.Name("Request")
+		traceRec.Event(fakeEvent("root", 0))
+
+		lastSpanID := traceID
+		for j := apptrace.ID(1); j < numSpansPerTrace; j++ {
+			// The parent span is the predecessor.
+			spanID := apptrace.NewSpanID(lastSpanID)
 
 			rec := apptrace.NewRecorder(spanID, c)
 			rec.Name(fakeNames[int(j+i)%len(fakeNames)])
@@ -35,6 +35,10 @@ func sampleData(c apptrace.Collector) error {
 				rec.Msg("hi")
 			}
 
+			// Create a fake SQL event, subtracting one so we start at zero.
+			rec.Event(fakeEvent("children", int(j-1)))
+
+			// Check for any recorder errors.
 			if errs := rec.Errors(); len(errs) > 0 {
 				return fmt.Errorf("recorder errors: %v", errs)
 			}
@@ -43,6 +47,21 @@ func sampleData(c apptrace.Collector) error {
 		}
 	}
 	return nil
+}
+
+var initTime = time.Now()
+
+// fakeEvent returns a SQLEvent with fake send and recieve times from the
+// fakeTimes map.
+func fakeEvent(name string, i int) *sqltrace.SQLEvent {
+	// Mod by the length of the slice to avoid index out of bounds when
+	// sampleData.numSpansPerTrace > len(t).
+	t := fakeTimes[name]
+	i = i % len(t)
+	return &sqltrace.SQLEvent{
+		ClientSend: initTime.Add(t[i][0] * time.Millisecond),
+		ClientRecv: initTime.Add(t[i][1] * time.Millisecond),
+	}
 }
 
 var fakeNames = []string{
@@ -66,4 +85,18 @@ var fakeNames = []string{
 	"Jouver",
 	"Strayolis",
 	"Grisaso",
+}
+
+// fakeTimes is a map of start and end times in milliseconds.
+var fakeTimes = map[string][][2]time.Duration{
+	"root": [][2]time.Duration{{5, 998}},
+	"children": [][2]time.Duration{
+		{11, 90},
+		{92, 150},
+		{154, 459},
+		{462, 730},
+		{734, 826},
+		{823, 975},
+		{983, 995},
+	},
 }
