@@ -89,6 +89,12 @@ func (a *App) d3timelineInner(t *apptrace.Trace, depth int) ([]timelineItem, err
 			ts.Label = fmt.Sprintf("%s (%s)", item.Label, msec)
 		}
 	}
+	if len(item.Times) == 0 {
+		// Items with a null times array will crash d3-timeline.js as it tries
+		// to iterate over it. This means the trace doesn't have a single
+		// TimespanEvent and is thus invalid.
+		return nil, nil
+	}
 	items = append(items, item)
 
 	for _, child := range t.Sub {

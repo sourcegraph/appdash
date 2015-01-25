@@ -50,29 +50,55 @@
    return fontSize * emUnits;
  }
 
+ // numFromEnd returns the number from the end of the potentially garbage
+ // string, e.g. "timelineItem_1443" -> 1443
+ function numFromEnd(str) {
+   return parseInt(str.match(/(\d+)$/)[0], 10);
+ }
+
  function timelineHover() {
+   var timespanHover = function(chart, index) {
+     var div = $('#hoverRes');
+     var colors = chart.colors();
+     div.find('.coloredDiv').css('background-color', colors(index));
+     div.find('#name').text(data[index].label);
+   }
+
    var chart = d3.timeline()
                  .width(width)
                  .stack()
                  .margin({left:em(6), right:0, top:0, bottom:0})
-                 .hover(function (d, i, datum) {
-                   // d is the current rendering object
-                   // i is the index during d3 rendering
-                   // datum is the id object
-                   var div = $('#hoverRes');
-                   var colors = chart.colors();
-                   div.find('.coloredDiv').css('background-color', colors(i))
-                   div.find('#name').text(datum.label);
-                 })
+                 .hover(function (d, i, datum) { timespanHover(chart, i) })
                  .click(function (d, i, datum) {
                    window.location.href = datum.url;
                    //alert(JSON.stringify(datum.rawData, null, 2));
                  });
    var svg = d3.select(".trace-timeline").append("svg").attr("width", width)
                .datum(data).call(chart);
+
+   // Make text on each timeline element click-able. d3-timeline.js doesn't
+   // seem to have a way to support this easily.
+   //
+   // We do this by selecting the text element, finding the prev element (the
+   // SVG rect), and then parsing the ID (which looks like: "timelineItem_1").
+   //
+   // The last number of that is the index into our data.
+   $(".trace-timeline g>text").each(function() {
+     $(this).hover(function() {
+       var index = numFromEnd($(this).prev().attr('id'));
+       timespanHover(chart, index);
+     });
+
+     $(this).click(function() {
+       var index = numFromEnd($(this).prev().attr('id'));
+       window.location.href = data[index].url;
+     });
+   });
  }
 
- timelineHover();
+ if(data != null) {
+   timelineHover();
+ }
 </script>
 
 <ul class="traces">
