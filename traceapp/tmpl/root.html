@@ -2,4 +2,41 @@
 
 {{define "Main"}}
 
+<style>
+.sub {
+	margin-left: 1em;
+	font-size: 16px;
+}
+.footer {
+	text-align: center;
+}
+</style>
+
+<h1>Welcome</h1>
+<div class="sub">
+	<p>Apptrace is a performance and debug tracing suite for Go.</p>
+	<p>It allows for tracing the end-to-end performance of hierarchically structured applications (like distributed web apps). Apptrace enables you to, for example, see detailed information of each HTTP request and SQL query made by an entire distributed web application.</p>
+</div>
+
+<hr/>
+<h2>Getting Started</h2>
+<div class="sub">
+	<p>To get started, click on the <em>Traces</em> tab at the top of this page. When a trace is collected it will show up there.</p>
+</div>
+
+<hr/>
+<h2>More</h2>
+<div class="sub">
+	<p>Apptrace is an open-source project hosted <a href="https://github.com/sourcegraph/apptrace">on GitHub</a>, and you can use the <a href="https://github.com/sourcegraph/apptrace/issues">issue tracker</a> to file an issue or request new features.</p>
+</div>
+
+<div class="footer">
+	<br/>
+	<!-- SourceGraph badge -->
+	<img src="https://sourcegraph.com/api/repos/sourcegraph.com/sourcegraph/apptrace/.badges/docs-examples.png" alt="docs-examples">
+
+	<!-- GoDoc badge -->
+	<a href="https://godoc.org/sourcegraph.com/sourcegraph/apptrace"><img src="https://godoc.org/sourcegraph.com/sourcegraph/apptrace?status.svg" alt="GoDoc"></a>
+</div>
+
 {{end}}
