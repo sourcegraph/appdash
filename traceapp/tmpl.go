@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/apptrace/traceapp/tmpl"
 
 	"github.com/gorilla/mux"
 )
@@ -83,6 +84,7 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 	return err
 }
 
+// parseHTMLTemplates parses the HTML templates from their source.
 func (a *App) parseHTMLTemplates(sets [][]string) error {
 	a.tmpls = map[string]*htmpl.Template{}
 	for _, set := range sets {
@@ -96,9 +98,14 @@ func (a *App) parseHTMLTemplates(sets [][]string) error {
 			"filterAnnotations": filterAnnotations,
 			"descendTraces":     func() bool { return false },
 		})
-		_, err := t.ParseFiles(joinTemplateDir(TemplateDir, set)...)
-		if err != nil {
-			return fmt.Errorf("template %v: %s", set, err)
+		for _, tmp := range set {
+			tmplBytes, err := tmpl.Asset(tmp)
+			if err != nil {
+				return fmt.Errorf("template %v: %s", set, err)
+			}
+			if _, err := t.Parse(string(tmplBytes)); err != nil {
+				return fmt.Errorf("template %v: %s", set, err)
+			}
 		}
 		t = t.Lookup("ROOT")
 		if t == nil {

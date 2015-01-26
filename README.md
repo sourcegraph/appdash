@@ -29,6 +29,16 @@ Check `cmd/apptrace/example_app.go` for an example Web app that uses
 apptrace. Run `apptrace demo` to run the app.
 
 
+## Development
+
+apptrace uses [go-bindata](https://github.com/jteeuwen/go-bindata) to package HTML templates with the apptrace binary.
+When developing, run `make gen-dev`. This will modify the `data.go` to read directly from the template source files,
+which makes it easier to test/debug as changes to templates will be reflected immediately in the running app. Do not
+push these changes upstream.
+
+When pushing changes to template files, run `make gen-dist` to re-generate the `data.go` file and push these changes
+together with the changes to the template files.
+
 ## Components
 
 Apptrace follows the design and naming conventions of
