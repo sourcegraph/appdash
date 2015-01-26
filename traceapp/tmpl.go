@@ -3,13 +3,10 @@ package traceapp
 import (
 	"bytes"
 	"fmt"
-	"go/build"
 	htmpl "html/template"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
+
 	"reflect"
 	"strconv"
 	"strings"
@@ -21,9 +18,6 @@ import (
 )
 
 var (
-	// TemplateDir is the directory containing the html/template template files.
-	TemplateDir = filepath.Join(defaultBase("sourcegraph.com/sourcegraph/apptrace/traceapp"), "tmpl")
-
 	// ReloadTemplates is whether to reload html/template templates
 	// before each request. It is useful during development.
 	ReloadTemplates = true
@@ -114,30 +108,6 @@ func (a *App) parseHTMLTemplates(sets [][]string) error {
 		a.tmpls[set[0]] = t
 	}
 	return nil
-}
-
-func joinTemplateDir(base string, files []string) []string {
-	result := make([]string, len(files))
-	for i := range files {
-		result[i] = filepath.Join(base, files[i])
-	}
-	return result
-}
-
-func defaultBase(path string) string {
-	p, err := build.Default.Import(path, "", build.FindOnly)
-	if err != nil {
-		log.Fatal(err)
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	p.Dir, err = filepath.Rel(cwd, p.Dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return p.Dir
 }
 
 func durationClass(usec int64) string {
