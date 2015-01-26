@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 )
 
-// TemplateDir is the directory containing the html/template template files.
-var templateDir = filepath.Join(defaultBase("sourcegraph.com/sourcegraph/apptrace/traceapp"), "tmpl")
+// rootDir is the directory containing the html/template template files.
+var rootDir = filepath.Join(defaultBase("sourcegraph.com/sourcegraph/apptrace/traceapp"), "tmpl")
 
 func defaultBase(path string) string {
 	p, err := build.Default.Import(path, "", build.FindOnly)

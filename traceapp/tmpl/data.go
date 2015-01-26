@@ -3,10 +3,10 @@ package tmpl
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 )
 
 // bindata_read reads the given file from disk. It returns an error on failure.
@@ -25,7 +25,7 @@ type asset struct {
 
 // layout_html reads file data from disk. It returns an error on failure.
 func layout_html() (*asset, error) {
-	path := filepath.Join(templateDir, "layout.html")
+	path := filepath.Join(rootDir, "layout.html")
 	name := "layout.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -43,7 +43,7 @@ func layout_html() (*asset, error) {
 
 // root_html reads file data from disk. It returns an error on failure.
 func root_html() (*asset, error) {
-	path := filepath.Join(templateDir, "root.html")
+	path := filepath.Join(rootDir, "root.html")
 	name := "root.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -61,7 +61,7 @@ func root_html() (*asset, error) {
 
 // trace_html reads file data from disk. It returns an error on failure.
 func trace_html() (*asset, error) {
-	path := filepath.Join(templateDir, "trace.html")
+	path := filepath.Join(rootDir, "trace.html")
 	name := "trace.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -79,7 +79,7 @@ func trace_html() (*asset, error) {
 
 // trace_inc_html reads file data from disk. It returns an error on failure.
 func trace_inc_html() (*asset, error) {
-	path := filepath.Join(templateDir, "trace.inc.html")
+	path := filepath.Join(rootDir, "trace.inc.html")
 	name := "trace.inc.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -97,7 +97,7 @@ func trace_inc_html() (*asset, error) {
 
 // traces_html reads file data from disk. It returns an error on failure.
 func traces_html() (*asset, error) {
-	path := filepath.Join(templateDir, "traces.html")
+	path := filepath.Join(rootDir, "traces.html")
 	name := "traces.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -154,11 +154,11 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"layout.html":    layout_html,
-	"root.html":      root_html,
-	"trace.html":     trace_html,
+	"layout.html": layout_html,
+	"root.html": root_html,
+	"trace.html": trace_html,
 	"trace.inc.html": trace_inc_html,
-	"traces.html":    traces_html,
+	"traces.html": traces_html,
 }
 
 // AssetDir returns the file names below a certain
@@ -197,60 +197,65 @@ func AssetDir(name string) ([]string, error) {
 }
 
 type _bintree_t struct {
-	Func     func() (*asset, error)
+	Func func() (*asset, error)
 	Children map[string]*_bintree_t
 }
-
 var _bintree = &_bintree_t{nil, map[string]*_bintree_t{
-	"layout.html":    &_bintree_t{layout_html, map[string]*_bintree_t{}},
-	"root.html":      &_bintree_t{root_html, map[string]*_bintree_t{}},
-	"trace.html":     &_bintree_t{trace_html, map[string]*_bintree_t{}},
-	"trace.inc.html": &_bintree_t{trace_inc_html, map[string]*_bintree_t{}},
-	"traces.html":    &_bintree_t{traces_html, map[string]*_bintree_t{}},
+	"layout.html": &_bintree_t{layout_html, map[string]*_bintree_t{
+	}},
+	"root.html": &_bintree_t{root_html, map[string]*_bintree_t{
+	}},
+	"trace.html": &_bintree_t{trace_html, map[string]*_bintree_t{
+	}},
+	"trace.inc.html": &_bintree_t{trace_inc_html, map[string]*_bintree_t{
+	}},
+	"traces.html": &_bintree_t{traces_html, map[string]*_bintree_t{
+	}},
 }}
 
 // Restore an asset under the given directory
 func RestoreAsset(dir, name string) error {
-	data, err := Asset(name)
-	if err != nil {
-		return err
-	}
-	info, err := AssetInfo(name)
-	if err != nil {
-		return err
-	}
-	err = os.MkdirAll(_filePath(dir, path.Dir(name)), os.FileMode(0755))
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(_filePath(dir, name), data, info.Mode())
-	if err != nil {
-		return err
-	}
-	err = os.Chtimes(_filePath(dir, name), info.ModTime(), info.ModTime())
-	if err != nil {
-		return err
-	}
-	return nil
+        data, err := Asset(name)
+        if err != nil {
+                return err
+        }
+        info, err := AssetInfo(name)
+        if err != nil {
+                return err
+        }
+        err = os.MkdirAll(_filePath(dir, path.Dir(name)), os.FileMode(0755))
+        if err != nil {
+                return err
+        }
+        err = ioutil.WriteFile(_filePath(dir, name), data, info.Mode())
+        if err != nil {
+                return err
+        }
+        err = os.Chtimes(_filePath(dir, name), info.ModTime(), info.ModTime())
+        if err != nil {
+                return err
+        }
+        return nil
 }
 
 // Restore assets under the given directory recursively
 func RestoreAssets(dir, name string) error {
-	children, err := AssetDir(name)
-	if err != nil { // File
-		return RestoreAsset(dir, name)
-	} else { // Dir
-		for _, child := range children {
-			err = RestoreAssets(dir, path.Join(name, child))
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+        children, err := AssetDir(name)
+        if err != nil { // File
+                return RestoreAsset(dir, name)
+        } else { // Dir
+                for _, child := range children {
+                        err = RestoreAssets(dir, path.Join(name, child))
+                        if err != nil {
+                                return err
+                        }
+                }
+        }
+        return nil
 }
 
 func _filePath(dir, name string) string {
-	cannonicalName := strings.Replace(name, "\\", "/", -1)
-	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
+        cannonicalName := strings.Replace(name, "\\", "/", -1)
+        return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
+
