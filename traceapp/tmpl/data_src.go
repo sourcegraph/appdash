@@ -1,3 +1,5 @@
+// +build !dist
+
 package tmpl
 
 import (
