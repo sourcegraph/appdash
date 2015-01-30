@@ -12,11 +12,13 @@ import (
 )
 
 type timelineItem struct {
-	Label  string                  `json:"label"`
-	Times  []*timelineItemTimespan `json:"times"`
-	Data   map[string]string       `json:"rawData"`
-	SpanID string                  `json:"spanID"`
-	URL    string                  `json:"url"`
+	Label        string                  `json:"label"`
+	Times        []*timelineItemTimespan `json:"times"`
+	Data         map[string]string       `json:"rawData"`
+	SpanID       string                  `json:"spanID"`
+	ParentSpanID string                  `json:"parentSpanID"`
+	URL          string                  `json:"url"`
+	Visible      bool                    `json:"visible"`
 }
 
 type timelineItemTimespan struct {
@@ -57,6 +59,12 @@ func (a *App) d3timelineInner(t *apptrace.Trace, depth int) ([]timelineItem, err
 		Data:   t.Annotations.StringMap(),
 		SpanID: t.Span.ID.Span.String(),
 		URL:    u.String(),
+	}
+	if t.Span.ID.Parent != 0 {
+		item.ParentSpanID = t.Span.ID.Parent.String()
+	}
+	if depth <= 1 {
+		item.Visible = true
 	}
 	for _, e := range events {
 		if e, ok := e.(apptrace.TimespanEvent); ok {
