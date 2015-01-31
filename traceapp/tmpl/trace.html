@@ -18,8 +18,20 @@
   <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu" style="display:block;position:static;margin-bottom:5px;">
     <li role="presentation" class="name dropdown-header"></li>
 
-    <li><a tabindex="-1" data-action="show-children" href="#">Show Children</a></li>
-    <li><a tabindex="-1" data-action="hide-children" href="#">Hide Children</a></li>
+    <li><a tabindex="-1" data-action="show-children" href="#" data-toggle="tooltip" data-placement="right" title="show all children below this span">Show Children</a></li>
+    <li><a tabindex="-1" data-action="hide-children" href="#" data-toggle="tooltip" data-placement="right" title="hide all children below this span">Hide Children</a></li>
+    <li><a tabindex="-1" data-action="filter" href="#" data-toggle="tooltip" data-placement="right" title="show/hide all children based on a filter">Filter</a></li>
+
+    <li><a tabindex="-1" href="#" data-action="close">Close</a></li>
+  </ul>
+</div>
+
+
+<div id="contextFilterMenu" class="dropdown clearfix">
+  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu" style="display:block;position:static;margin-bottom:5px;">
+    <li role="presentation" class="dropdown-header"><span class="name"></span>: Filter</li>
+
+    <li><input type="text" class="filter form-control" data-toggle="tooltip" data-placement="right" title="type a key:value pair and press enter to apply the filter" placeholder='key:value...'></li>
 
     <li><a tabindex="-1" href="#" data-action="close">Close</a></li>
   </ul>
@@ -55,11 +67,11 @@
    display: inline-block;
    margin-left: 0.3em;
  }
- #contextMenu {
+ #contextMenu, #contextFilterMenu {
    font-family: sans-serif;
    font-size: 12px;
    position: absolute;
-   display:none;
+   display: none;
  }
  #contextMenu .dropdown-menu>li>span {
    display: block;
@@ -88,6 +100,9 @@
    return parseInt(str.match(/(\d+)$/)[0], 10);
  }
 
+ // Initialize bootstrap tooltips.
+ $('[data-toggle="tooltip"]').tooltip();
+
  // setChildrenVisible walks through the data and finds all children (including
  // distant ones) of the given spanID. It marks each one as visible (true or
  // false).
@@ -99,6 +114,52 @@
      other.visible = visible;
      setChildrenVisible(other.spanID, visible);
    });
+ }
+
+ // filterChildren walks through the data and finds all children (including
+ // distant ones) of the given spanID. It uses a filter to mark each child span
+ // as visible or not.
+ //
+ // A strict search is defined by a key followed by a colon and a quoted value.
+ //
+ //  Key:"expected value"
+ //
+ // For example:
+ //
+ //  Name:"Request"
+ //
+ // Fuzzy searching is not yet implemented: if a filter does not match the
+ // above pattern this function is no-op.
+ function filterChildren(spanID, filter) {
+   // Validate the filter.
+   var splitFilter = filter.split(":");
+   if(splitFilter.length != 2) {
+     alert('filter expects colon, e.g. key:"value"');
+     return false;
+   }
+   var k = splitFilter[0];
+   var v = splitFilter[1];
+   if(v[0] !== '"' || v[v.length-1] !== '"') {
+     alert('filter expects quoted value, e.g. key:"value"');
+     return false;
+   }
+   // Strip leading and trailing quotes from value:
+   v = v.slice(1, v.length-1);
+
+   $.each(data, function(i, other) {
+     if(other.parentSpanID != spanID) {
+       return;
+     }
+
+     // Check if the span has a key and value exactly matching our filter.
+     if(other.rawData[k] == v) {
+       other.visible = true;
+     } else {
+       other.visible = false;
+     }
+     filterChildren(other.spanID, filter);
+   });
+   return true;
  }
 
  // When the user presses the Close button in the context menu, we hide it. We
@@ -123,7 +184,43 @@
  $('#contextMenu a[data-action="show-children"]').on("click", function(e) { ctxMenuActionShowHide(e, true) });
  $('#contextMenu a[data-action="hide-children"]').on("click", function(e) { ctxMenuActionShowHide(e, false) });
 
+ // Event handler for the filter submenu.
+ $('#contextMenu a[data-action="filter"]').on("click", function(e) {
+   // Close the normal context menu.
+   ctxMenuActionClose(e);
+
+   // Display the submenu.
+   $("#contextFilterMenu .name").html($("#contextMenu .name").html());
+   $("#contextFilterMenu").css({
+     display: "block",
+     left: $("#contextMenu").css("left"),
+     top: $("#contextMenu").css("top")
+   });
+   $('#contextFilterMenu .filter').select();
+ });
+
+ // Hide the filter context-submenu when the user presses the close button.
+ $('#contextFilterMenu a[data-action="close"]').on("click", function(e) {
+   e.preventDefault();
+   $("#contextFilterMenu").hide();
+ });
+
+ // When the user types something into the filter text input and presses enter,
+ // we apply the filter to all children below the target span.
+ $('#contextFilterMenu .filter').keyup(function(e) {
+   if(e.keyCode != 13) {
+     return; // Not enter.
+   }
+   // Hide the context menu, grab the target span ID, and filter the children.
+   var spanID = $("#contextMenu").data("dataObject").spanID;
+   if (filterChildren(spanID, $(this).val())) {
+     $("#contextFilterMenu").hide();
+     timelineHover();
+   }
+ });
+
  function ctxMenuOpen(e, datum, obj) {
+   $("#contextFilterMenu").hide();
    $("#contextMenu").data("dataObject", obj);
    $("#contextMenu .name").html(datum.label);
    $("#contextMenu").css({
