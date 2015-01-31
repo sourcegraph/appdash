@@ -61,6 +61,8 @@ func fakeEvent(name string, i int) *sqltrace.SQLEvent {
 	return &sqltrace.SQLEvent{
 		ClientSend: initTime.Add(t[i][0] * time.Millisecond),
 		ClientRecv: initTime.Add(t[i][1] * time.Millisecond),
+		SQL:        "SELECT * FROM table_name;",
+		Tag:        fmt.Sprintf("fakeTag%d", i),
 	}
 }
 
