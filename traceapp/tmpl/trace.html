@@ -116,6 +116,49 @@
    });
  }
 
+ // filterChildrenFuzzy uses Fuse to fuzzy-search through the data (
+ // specifically, the names and tags) and hides all children elements that do
+ // not match.
+ function filterChildrenFuzzy(spanID, filter) {
+   // Use fuse to fuzzy-search through our dataset with the given filter.
+   var options = {
+     caseSensitive: false,
+     shouldSort: true,
+     threshold: 0.3, // A lower threshold is more strict, higher is less.
+     keys: ["rawData.Name", "rawData.Tag"] // Data fields to search on.
+   };
+   var fuse = new Fuse(data, options);
+   var results = fuse.search(filter);
+
+   // Recursively descend into each span showing and hiding each one based on
+   // our search results.
+   var descend = null;
+   descend = function(parentSpanID) {
+     $.each(data, function(i, other) {
+       // Check that the span we're looking at is a child of the given parent
+       // span.
+       if(other.parentSpanID != parentSpanID) {
+         return;
+       }
+
+       // Depending on whether or not the span showed up in our fuzzy search
+       // results, we show or hide it.
+       other.visible = false;
+       $.each(results, function(i, result) {
+         if(result.spanID != other.spanID) {
+           return;
+         }
+         other.visible = true;
+         return false; // stop the search.
+       });
+
+       // Descend into that span's children.
+       descend(other.spanID);
+     });
+   }
+   descend(spanID);
+ }
+
  // filterChildren walks through the data and finds all children (including
  // distant ones) of the given spanID. It uses a filter to mark each child span
  // as visible or not.
@@ -128,20 +171,22 @@
  //
  //  Name:"Request"
  //
- // Fuzzy searching is not yet implemented: if a filter does not match the
- // above pattern this function is no-op.
+ // If a filter does not match the above strict-searching pattern,
+ // filterChildren silently falls back to fuse-based fuzzy searching.
  function filterChildren(spanID, filter) {
    // Validate the filter.
    var splitFilter = filter.split(":");
    if(splitFilter.length != 2) {
-     alert('filter expects colon, e.g. key:"value"');
-     return false;
+     // Missing colon for strict search, fallback to fuzzy search then.
+     filterChildrenFuzzy(spanID, filter);
+     return;
    }
    var k = splitFilter[0];
    var v = splitFilter[1];
    if(v[0] !== '"' || v[v.length-1] !== '"') {
-     alert('filter expects quoted value, e.g. key:"value"');
-     return false;
+     // Missing quoted value for strict search, fallback to fuzzy search then.
+     filterChildrenFuzzy(spanID, filter);
+     return;
    }
    // Strip leading and trailing quotes from value:
    v = v.slice(1, v.length-1);
@@ -159,7 +204,6 @@
      }
      filterChildren(other.spanID, filter);
    });
-   return true;
  }
 
  // When the user presses the Close button in the context menu, we hide it. We
@@ -213,10 +257,9 @@
    }
    // Hide the context menu, grab the target span ID, and filter the children.
    var spanID = $("#contextMenu").data("dataObject").spanID;
-   if (filterChildren(spanID, $(this).val())) {
-     $("#contextFilterMenu").hide();
-     timelineHover();
-   }
+   filterChildren(spanID, $(this).val())
+   $("#contextFilterMenu").hide();
+   timelineHover();
  });
 
  function ctxMenuOpen(e, datum, obj) {
