@@ -120,15 +120,10 @@
  // specifically, the names and tags) and hides all children elements that do
  // not match.
  function filterChildrenFuzzy(spanID, filter) {
-   // Use fuse to fuzzy-search through our dataset with the given filter.
-   var options = {
-     caseSensitive: false,
-     shouldSort: true,
-     threshold: 0.3, // A lower threshold is more strict, higher is less.
-     keys: ["rawData.Name", "rawData.Tag"] // Data fields to search on.
-   };
-   var fuse = new Fuse(data, options);
-   var results = fuse.search(filter);
+   // Fuse has a limitation of 32 character search pattern strings, so we just
+   // slice to 32 incase someone enters more (which would cause Fuse to raise
+   // an exception).
+   filter = filter.slice(0, 32);
 
    // Recursively descend into each span showing and hiding each one based on
    // our search results.
@@ -141,16 +136,20 @@
          return;
        }
 
-       // Depending on whether or not the span showed up in our fuzzy search
-       // results, we show or hide it.
-       other.visible = false;
-       $.each(results, function(i, result) {
-         if(result.spanID != other.spanID) {
-           return;
-         }
-         other.visible = true;
-         return false; // stop the search.
+       // Perform a fuzzy search on this spans' keys. We do this as not all
+       // spans have identical keys to search on, and Fuse wants specific keys
+       // to search on.
+       var fuse = new Fuse([other.rawData], {
+         caseSensitive: false,
+         shouldSort: true,
+         threshold: 0.3,                   // A lower threshold is more strict, higher is less.
+         keys: Object.keys(other.rawData), // Data fields to search on.
        });
+       var results = fuse.search(filter);
+
+       // Depending on whether or not the fuzzy search on this span turned up
+       // any results, the span is visible or hidden.
+       other.visible = results.length > 0;
 
        // Descend into that span's children.
        descend(other.spanID);
