@@ -340,7 +340,21 @@
 </script>
 
 <ul class="traces">
-  {{template "Trace" .Trace}}
+  <li class="trace" id="span-{{.Trace.Span.ID.Span}}">
+    {{if .Trace.Name}}
+    <strong title="{{.Trace.ID}}">{{.Trace.Name}}</strong>
+    {{else}}
+    <strong title="{{.Trace.ID}}">{{.Trace.ID.Span}}</strong>
+    {{end}}
+
+    {{if .Trace.Span.Annotations}}
+    <table class="table table-condensed table-striped">
+      {{range (filterAnnotations .Trace.Span.Annotations)}}
+      <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+      {{end}}
+    </table>
+    {{end}}
+  </li>
 </ul>
 
 {{end}}

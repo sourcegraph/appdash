@@ -9,7 +9,21 @@
     <a href="{{urlToTrace .Span.ID.Trace}}">{{.Span.ID.Trace}}</a>
 
     <ul class="traces">
-      {{template "Trace" .}}
+      <li class="trace" id="span-{{.Span.ID.Span}}">
+        {{if .Name}}
+        <strong title="{{.ID}}">{{.Name}}</strong>
+        {{else}}
+        <strong title="{{.ID}}">{{.ID.Span}}</strong>
+        {{end}}
+
+        {{if .Span.Annotations}}
+        <table class="table table-condensed table-striped">
+          {{range (filterAnnotations .Span.Annotations)}}
+          <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+          {{end}}
+        </table>
+        {{end}}
+      </li>
     </ul>
   </li>
   {{end}}
