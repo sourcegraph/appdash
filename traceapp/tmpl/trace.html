@@ -72,6 +72,7 @@
    font-size: 12px;
    position: absolute;
    display: none;
+   z-index: 100;
  }
  #contextMenu .dropdown-menu>li>span {
    display: block;
@@ -339,7 +340,51 @@
  }
 </script>
 
-<ul class="traces">
+
+<!-- Trace Table -->
+<style type="text/css">
+ .viewMode {
+   padding-top: 1em;
+   padding-bottom: 1em;
+ }
+ #profileView {
+   display: none;
+ }
+</style>
+
+<!-- Justified radio-buttons for switching between data and profile views -->
+<div class="viewMode btn-group btn-group-justified btn-group-xs" data-toggle="buttons" id="radioopt">
+  <label class="btn btn-primary active">
+    <input type="radio" name="view" id="btnDataView" value="Data View">Data View</input>
+  </label>
+  <label class="btn btn-primary">
+    <input type="radio" name="view" id="btnProfileView" value="Profile View">Profile View</input>
+  </label>
+</div>
+
+<!--
+ JavaScript code to hide and show the data / profile views depending on which
+ radio button is selected
+-->
+<script type="text/javascript">
+  $(".viewMode input:radio").change(function(){
+     var id = $(this).attr("id");
+     if(id == "btnDataView") {
+       $("#dataView").show();
+     } else {
+       $("#dataView").hide();
+     }
+
+     if(id == "btnProfileView") {
+       $("#profileView").show();
+     } else {
+       $("#profileView").hide();
+     }
+  });
+</script>
+
+<!-- The data view layout -->
+<ul id="dataView" class="traces">
   <li class="trace" id="span-{{.Trace.Span.ID.Span}}">
     {{if .Trace.Name}}
     <strong title="{{.Trace.ID}}">{{.Trace.Name}}</strong>
@@ -356,6 +401,30 @@
     {{end}}
   </li>
 </ul>
+
+<!-- The profile view layout -->
+<div id="profileView">
+  <table data-toggle="table" data-url="{{.ProfileURL}}" class="table table-condensed" data-height="299">
+    <thead>
+      <tr>
+        <th data-sortable="true" data-field="Name">Name</th>
+        <th data-sortable="true" data-field="Time">Time (ms)</th>
+        <th data-sortable="true" data-field="TimeChildren">Time + Children (ms)</th>
+        <th data-sortable="true" data-field="TimeCum">Cumulative Time (ms)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Example data useful for previewing the table UI
+      <tr>
+        <td>/tmp?foo=true</td>
+        <td>1050</td>
+        <td>3000</td>
+        <td>23000</td>
+      </tr>
+      -->
+    </tbody>
+  </table>
+</div>
 
 {{end}}
 

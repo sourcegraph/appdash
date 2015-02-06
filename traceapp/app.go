@@ -3,6 +3,8 @@ package traceapp
 import (
 	htmpl "html/template"
 	"net/http"
+	"net/url"
+	"path"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -34,6 +36,8 @@ func New(r *Router) *App {
 	r.r.Get(RootRoute).Handler(handlerFunc(app.serveRoot))
 	r.r.Get(TraceRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TraceSpanRoute).Handler(handlerFunc(app.serveTrace))
+	r.r.Get(TraceProfileRoute).Handler(handlerFunc(app.serveTrace))
+	r.r.Get(TraceSpanProfileRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TracesRoute).Handler(handlerFunc(app.serveTraces))
 
 	return app
@@ -82,18 +86,38 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
+	// We could use a separate handler for this, but as we need the above to
+	// determine the correct trace (or therein sub-trace), we just handle any
+	// JSON profile requests here.
+	if path.Base(r.URL.Path) == "profile" {
+		return a.profile(trace, w)
+	}
+
 	visData, err := a.d3timeline(trace)
+	if err != nil {
+		return err
+	}
+
+	// Determine the profile URL.
+	var profile *url.URL
+	if trace.ID.Parent == 0 {
+		profile, err = a.Router.URLToTraceProfile(trace.Span.ID.Trace)
+	} else {
+		profile, err = a.Router.URLToTraceSpanProfile(trace.Span.ID.Trace, trace.Span.ID.Span)
+	}
 	if err != nil {
 		return err
 	}
 
 	return a.renderTemplate(w, r, "trace.html", http.StatusOK, &struct {
 		TemplateCommon
-		Trace   *apptrace.Trace
-		VisData []timelineItem
+		Trace      *apptrace.Trace
+		VisData    []timelineItem
+		ProfileURL string
 	}{
-		Trace:   trace,
-		VisData: visData,
+		Trace:      trace,
+		VisData:    visData,
+		ProfileURL: profile.String(),
 	})
 }
 

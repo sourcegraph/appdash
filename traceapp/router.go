@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	RootRoute      = "traceapp.root"       // route name for root
-	TraceRoute     = "traceapp.trace"      // route name for a single trace page
-	TraceSpanRoute = "traceapp.trace.span" // route name for a single trace sub-span page
-	TracesRoute    = "traceapp.traces"     // route name for traces page
+	RootRoute             = "traceapp.root"               // route name for root
+	TraceRoute            = "traceapp.trace"              // route name for a single trace page
+	TraceSpanRoute        = "traceapp.trace.span"         // route name for a single trace sub-span page
+	TraceProfileRoute     = "traceapp.trace.profile"      // route name for a JSON trace profile
+	TraceSpanProfileRoute = "traceapp.trace.span.profile" // route name for a JSON trace sub-span profile
+	TracesRoute           = "traceapp.traces"             // route name for traces page
 )
 
 type Router struct{ r *mux.Router }
@@ -24,6 +26,8 @@ func NewRouter(base *mux.Router) *Router {
 	}
 	base.Path("/").Methods("GET").Name(RootRoute)
 	base.Path("/traces/{Trace}").Methods("GET").Name(TraceRoute)
+	base.Path("/traces/{Trace}/profile").Methods("GET").Name(TraceProfileRoute)
+	base.Path("/traces/{Trace}/{Span}/profile").Methods("GET").Name(TraceSpanProfileRoute)
 	base.Path("/traces/{Trace}/{Span}").Methods("GET").Name(TraceSpanRoute)
 	base.Path("/traces").Methods("GET").Name(TracesRoute)
 	return &Router{base}
@@ -46,4 +50,15 @@ func (r *Router) URLToTrace(id apptrace.ID) (*url.URL, error) {
 // URLToTraceSpan constructs a URL to a sub-span in a trace.
 func (r *Router) URLToTraceSpan(trace, span apptrace.ID) (*url.URL, error) {
 	return r.r.Get(TraceSpanRoute).URL("Trace", trace.String(), "Span", span.String())
+}
+
+// URLToTraceProfile constructs a URL to a trace's JSON profile.
+func (r *Router) URLToTraceProfile(trace apptrace.ID) (*url.URL, error) {
+	return r.r.Get(TraceProfileRoute).URL("Trace", trace.String())
+}
+
+// URLToTraceSpanProfile constructs a URL to a sub-span's JSON profile in a
+// trace.
+func (r *Router) URLToTraceSpanProfile(trace, span apptrace.ID) (*url.URL, error) {
+	return r.r.Get(TraceSpanProfileRoute).URL("Trace", trace.String(), "Span", span.String())
 }
