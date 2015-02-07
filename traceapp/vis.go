@@ -74,7 +74,7 @@ func (a *App) d3timelineInner(t *apptrace.Trace, depth int) ([]timelineItem, err
 				Start: start,
 				End:   end,
 			}
-			if depth == 0 {
+			if t.Span.ID.Parent == 0 {
 				ts.Label = e.Schema()
 				item.Times = append(item.Times, &ts)
 			} else {
