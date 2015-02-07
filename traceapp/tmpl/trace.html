@@ -117,6 +117,18 @@
    });
  }
 
+ // cloneObjNoDots clones the given object (all of it's keys and values). It
+ // returns the clone, but with all keys containing dots (.) replaced with
+ // underscores. This is useful because Fuse treats keys with dots as accessors
+ // into sub-objects (not literally the key).
+ function cloneObjNoDots(o) {
+   var noDots = {};
+   $.each(o, function(k, v) {
+     noDots[k.replace(/\./g,'_')] = v
+   });
+   return noDots;
+ }
+
  // filterChildrenFuzzy uses Fuse to fuzzy-search through the data (
  // specifically, the names and tags) and hides all children elements that do
  // not match.
@@ -140,11 +152,12 @@
        // Perform a fuzzy search on this spans' keys. We do this as not all
        // spans have identical keys to search on, and Fuse wants specific keys
        // to search on.
-       var fuse = new Fuse([other.rawData], {
+       var r = cloneObjNoDots(other.rawData);
+       var fuse = new Fuse([r], {
          caseSensitive: false,
          shouldSort: true,
-         threshold: 0.3,                   // A lower threshold is more strict, higher is less.
-         keys: Object.keys(other.rawData), // Data fields to search on.
+         threshold: 0.3,       // A lower threshold is more strict, higher is less.
+         keys: Object.keys(r), // Data fields to search on.
        });
        var results = fuse.search(filter);
 
