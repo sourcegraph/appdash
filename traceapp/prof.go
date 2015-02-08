@@ -52,12 +52,17 @@ func (a *App) calcProfile(buf []*profile, t *apptrace.Trace) (prof []*profile, c
 	}
 	buf = append(buf, p)
 
-	// If the span has a timespan event, we measure it's time.
+	// Store the time for the largest timespan event the span has.
 	for _, ev := range events {
 		ts, ok := ev.(apptrace.TimespanEvent)
-		if ok {
-			p.Time = int64(ts.End().Sub(ts.Start()) / time.Millisecond)
-			break
+		if !ok {
+			continue
+		}
+		// To match the timeline properly we use floats and round up.
+		msf := float64(ts.End().Sub(ts.Start())) / float64(time.Millisecond)
+		ms := int64(msf + 0.5)
+		if ms > p.Time {
+			p.Time = ms
 		}
 	}
 
