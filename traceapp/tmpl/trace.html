@@ -439,5 +439,17 @@
   </table>
 </div>
 
+<!--
+ When clicking on a profile-view table row, we want it to redirect us to the
+ proper sub-span page.
+-->
+<script type="text/javascript">
+ $("#profileView .table").on('click-row.bs.table', function (e, row, $element) {
+   if(window.location.pathname != row.URL) {
+     window.location.href = row.URL;
+   }
+ });
+</script>
+
 {{end}}
 

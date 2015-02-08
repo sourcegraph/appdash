@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/url"
 	"time"
 
 	"sourcegraph.com/sourcegraph/apptrace"
@@ -11,6 +12,7 @@ import (
 
 type profile struct {
 	Name                        string
+	URL                         string
 	Time, TimeChildren, TimeCum int64
 }
 
@@ -25,10 +27,25 @@ func (a *App) calcProfile(buf []*profile, t *apptrace.Trace) (prof []*profile, c
 		return nil, nil, err
 	}
 
+	// Get the proper URL to the trace view.
+	var u *url.URL
+	if t.ID.Parent == 0 {
+		u, err = a.URLToTrace(t.ID.Trace)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		u, err = a.URLToTraceSpan(t.ID.Trace, t.ID.Span)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// Initialize the span's profile structure. We use either the span's given
 	// name, or it's ID as a string if it has no given name.
 	p := &profile{
 		Name: t.Span.Name(),
+		URL:  u.String(),
 	}
 	if len(p.Name) == 0 {
 		p.Name = t.Span.ID.Span.String()
