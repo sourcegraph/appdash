@@ -3,7 +3,7 @@ package httptrace
 import (
 	"net/http"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 )
 
 // SetSpanIDHeader sets the Span-ID header.
-func SetSpanIDHeader(h http.Header, e apptrace.SpanID) {
+func SetSpanIDHeader(h http.Header, e appdash.SpanID) {
 	h.Set(HeaderSpanID, e.String())
 }
 
@@ -29,12 +29,12 @@ func SetSpanIDHeader(h http.Header, e apptrace.SpanID) {
 // values in the HTTP headers. If a Span-ID header is provided, it is
 // parsed; if a Parent-Span-ID header is provided, a new child span is
 // created and it is returned; otherwise a new root SpanID is created.
-func GetSpanID(h http.Header) (*apptrace.SpanID, error) {
+func GetSpanID(h http.Header) (*appdash.SpanID, error) {
 	spanID, _, err := getSpanID(h)
 	return spanID, err
 }
 
-func getSpanID(h http.Header) (spanID *apptrace.SpanID, fromHeader string, err error) {
+func getSpanID(h http.Header) (spanID *appdash.SpanID, fromHeader string, err error) {
 	// Check for Span-ID.
 	fromHeader = HeaderSpanID
 	spanID, err = getSpanIDHeader(h, HeaderSpanID)
@@ -50,7 +50,7 @@ func getSpanID(h http.Header) (spanID *apptrace.SpanID, fromHeader string, err e
 			return nil, fromHeader, err
 		}
 		if spanID != nil {
-			newSpanID := apptrace.NewSpanID(*spanID)
+			newSpanID := appdash.NewSpanID(*spanID)
 			spanID = &newSpanID
 		}
 	}
@@ -58,7 +58,7 @@ func getSpanID(h http.Header) (spanID *apptrace.SpanID, fromHeader string, err e
 	// Create a new root span ID.
 	if spanID == nil {
 		fromHeader = ""
-		newSpanID := apptrace.NewRootSpanID()
+		newSpanID := appdash.NewRootSpanID()
 		spanID = &newSpanID
 	}
 	return spanID, fromHeader, nil
@@ -67,10 +67,10 @@ func getSpanID(h http.Header) (spanID *apptrace.SpanID, fromHeader string, err e
 // getSpanIDHeader returns the SpanID in the header (specified by
 // key), nil if no such header was provided, or an error if the value
 // was unparseable.
-func getSpanIDHeader(h http.Header, key string) (*apptrace.SpanID, error) {
+func getSpanIDHeader(h http.Header, key string) (*appdash.SpanID, error) {
 	s := h.Get(key)
 	if s == "" {
 		return nil, nil
 	}
-	return apptrace.ParseSpanID(s)
+	return appdash.ParseSpanID(s)
 }

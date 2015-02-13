@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 	RedactedHeaders = []string{"Authorization"}
 )
 
-func init() { apptrace.RegisterEvent(ClientEvent{}) }
+func init() { appdash.RegisterEvent(ClientEvent{}) }
 
 // NewClientEvent returns an event which records various aspects of an
 // HTTP request.  The returned value is incomplete, and should have
@@ -97,13 +97,13 @@ func isRedacted(name string) bool {
 	return false
 }
 
-// Transport is an HTTP transport that adds apptrace span ID headers
+// Transport is an HTTP transport that adds appdash span ID headers
 // to requests so that downstream operations are associated with the
 // same trace.
 type Transport struct {
 	// Recorder is the current span's recorder. A new child Recorder
 	// (with a new child SpanID) is created for each HTTP roundtrip.
-	*apptrace.Recorder
+	*appdash.Recorder
 
 	// Transport is the underlying HTTP transport to use when making
 	// requests.  It will default to http.DefaultTransport if nil.

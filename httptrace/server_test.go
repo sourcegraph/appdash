@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
-var _ apptrace.Event = ServerEvent{}
+var _ appdash.Event = ServerEvent{}
 
 func TestNewServerEvent(t *testing.T) {
 	r := &http.Request{
@@ -35,7 +35,7 @@ func TestNewServerEvent(t *testing.T) {
 	if e.Schema() != "HTTPServer" {
 		t.Errorf("unexpected schema: %v", e.Schema())
 	}
-	anns, err := apptrace.MarshalEvent(e)
+	anns, err := appdash.MarshalEvent(e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,20 +63,20 @@ func TestNewServerEvent(t *testing.T) {
 }
 
 func TestMiddleware_useSpanFromHeaders(t *testing.T) {
-	ms := apptrace.NewMemoryStore()
-	c := apptrace.NewLocalCollector(ms)
+	ms := appdash.NewMemoryStore()
+	c := appdash.NewLocalCollector(ms)
 
 	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
 	req.Header.Set("X-Req-Header", "a")
 
-	spanID := apptrace.SpanID{1, 2, 3}
+	spanID := appdash.SpanID{1, 2, 3}
 	SetSpanIDHeader(req.Header, spanID)
 
-	var setContextSpan apptrace.SpanID
+	var setContextSpan appdash.SpanID
 	mw := Middleware(c, &MiddlewareConfig{
 		RouteName:      func(r *http.Request) string { return "r" },
 		CurrentUser:    func(r *http.Request) string { return "u" },
-		SetContextSpan: func(r *http.Request, id apptrace.SpanID) { setContextSpan = id },
+		SetContextSpan: func(r *http.Request, id appdash.SpanID) { setContextSpan = id },
 	})
 
 	w := httptest.NewRecorder()
@@ -92,7 +92,7 @@ func TestMiddleware_useSpanFromHeaders(t *testing.T) {
 	}
 
 	var e ServerEvent
-	if err := apptrace.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
+	if err := appdash.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,20 +120,20 @@ func TestMiddleware_useSpanFromHeaders(t *testing.T) {
 }
 
 func TestMiddleware_createNewSpan(t *testing.T) {
-	ms := apptrace.NewMemoryStore()
-	c := apptrace.NewLocalCollector(ms)
+	ms := appdash.NewMemoryStore()
+	c := appdash.NewLocalCollector(ms)
 
 	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
 
-	var setContextSpan apptrace.SpanID
+	var setContextSpan appdash.SpanID
 	mw := Middleware(c, &MiddlewareConfig{
-		SetContextSpan: func(r *http.Request, id apptrace.SpanID) { setContextSpan = id },
+		SetContextSpan: func(r *http.Request, id appdash.SpanID) { setContextSpan = id },
 	})
 
 	w := httptest.NewRecorder()
 	mw(w, req, func(http.ResponseWriter, *http.Request) {})
 
-	if setContextSpan == (apptrace.SpanID{0, 0, 0}) {
+	if setContextSpan == (appdash.SpanID{0, 0, 0}) {
 		t.Errorf("context span is zero, want it to be set")
 	}
 
@@ -143,7 +143,7 @@ func TestMiddleware_createNewSpan(t *testing.T) {
 	}
 
 	var e ServerEvent
-	if err := apptrace.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
+	if err := appdash.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
 		t.Fatal(err)
 	}
 
@@ -187,7 +187,7 @@ func TestServerEvent_unmarshal(t *testing.T) {
 		"_schema:HTTPServer":       "",
 	}
 	var e ServerEvent
-	if err := apptrace.UnmarshalEvent(mapToAnnotations(m), &e); err != nil {
+	if err := appdash.UnmarshalEvent(mapToAnnotations(m), &e); err != nil {
 		t.Fatal(err)
 	}
 
@@ -213,10 +213,10 @@ func TestServerEvent_unmarshal(t *testing.T) {
 	}
 }
 
-func mapToAnnotations(m map[string]string) apptrace.Annotations {
-	anns := make(apptrace.Annotations, 0, len(m))
+func mapToAnnotations(m map[string]string) appdash.Annotations {
+	anns := make(appdash.Annotations, 0, len(m))
 	for k, v := range m {
-		anns = append(anns, apptrace.Annotation{Key: k, Value: []byte(v)})
+		anns = append(anns, appdash.Annotation{Key: k, Value: []byte(v)})
 	}
 	return anns
 }
