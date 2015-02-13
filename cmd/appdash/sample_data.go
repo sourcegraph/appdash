@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"sourcegraph.com/sourcegraph/appdash/sqltrace"
 	"sourcegraph.com/sourcegraph/appdash"
+	"sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
 
 func sampleData(c appdash.Collector) error {
