@@ -188,8 +188,8 @@ type RemoteCollector struct {
 
 	dial func() (net.Conn, error)
 
-	mu   sync.Mutex // guards conn
-	conn net.Conn
+	mu    sync.Mutex      // guards pconn
+	pconn pio.WriteCloser // delimited-protobuf remote connection
 
 	// Log is the logger to use for errors and warnings. If nil, a new
 	// logger is created.
@@ -209,14 +209,17 @@ func (rc *RemoteCollector) Collect(span SpanID, anns ...Annotation) error {
 // connect makes a connection to the collector server. It must be
 // called with rc.mu held.
 func (rc *RemoteCollector) connect() error {
-	if rc.conn != nil {
-		rc.conn.Close()
-		rc.conn = nil
+	if rc.pconn != nil {
+		rc.pconn.Close()
+		rc.pconn = nil
 	}
 
 	c, err := rc.dial()
 	if err == nil {
-		rc.conn = c
+		// Create a protobuf delimited writer wrapping the connection. When the
+		// writer is closed, it also closes the underlying connection (see
+		// source code for details).
+		rc.pconn = pio.NewDelimitedWriter(c)
 	}
 	return err
 }
@@ -226,9 +229,9 @@ func (rc *RemoteCollector) Close() error {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
-	if rc.conn != nil {
-		err := rc.conn.Close()
-		rc.conn = nil
+	if rc.pconn != nil {
+		err := rc.pconn.Close()
+		rc.pconn = nil
 		return err
 	}
 	return nil
@@ -238,7 +241,7 @@ func (rc *RemoteCollector) collectAndRetry(p *wire.CollectPacket) error {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
-	if rc.conn != nil {
+	if rc.pconn != nil {
 		if err := rc.collect(p); err == nil {
 			return nil
 		}
@@ -257,21 +260,10 @@ func (rc *RemoteCollector) collect(p *wire.CollectPacket) error {
 		rc.log().Printf("Sending %v", spanIDFromWire(p.Spanid))
 	}
 
-	// Create a buffered writer and protobuf delimited writer.
-	w := pio.NewDelimitedWriter(rc.conn)
-
 	// Send our message, close writer.
-	if err := w.WriteMsg(p); err != nil {
+	if err := rc.pconn.WriteMsg(p); err != nil {
 		return err
 	}
-
-	// TODO(slimsag): We're leaking the writer here. DelimitedWriter.Close
-	// closes the underlying connection as well. The lifetime is identical to
-	// rc.conn -- we can probably swap them out.
-	//
-	//if err := w.Close(); err != nil {
-	//	return err
-	//}
 
 	if rc.Debug {
 		rc.log().Printf("Sent %v", spanIDFromWire(p.Spanid))
