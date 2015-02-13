@@ -10,17 +10,19 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"sourcegraph.com/sourcegraph/apptrace/internal/wire"
 )
 
 func TestCollectorServer(t *testing.T) {
 	var (
-		packets   []collectPacket
+		packets   []*wire.CollectPacket
 		packetsMu sync.Mutex
 	)
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
 		packetsMu.Lock()
 		defer packetsMu.Unlock()
-		packets = append(packets, collectPacket{span, anns})
+		packets = append(packets, newCollectPacket(span, anns))
 		return nil
 	})
 
@@ -35,12 +37,12 @@ func TestCollectorServer(t *testing.T) {
 
 	cc := &collectorT{t, NewRemoteCollector(l.Addr().String())}
 
-	collectPackets := []collectPacket{
-		{SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}}},
-		{SpanID{2, 3, 4}, Annotations{{"k2", []byte("v2")}}},
+	collectPackets := []*wire.CollectPacket{
+		newCollectPacket(SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}}),
+		newCollectPacket(SpanID{2, 3, 4}, Annotations{{"k2", []byte("v2")}}),
 	}
 	for _, p := range collectPackets {
-		cc.MustCollect(p.SpanID, p.Annotations...)
+		cc.MustCollect(spanIDFromWire(p.Spanid), annotationsFromWire(p.Annotation)...)
 	}
 	if err := cc.Collector.(*RemoteCollector).Close(); err != nil {
 		t.Error(err)
@@ -146,9 +148,9 @@ func TestTLSCollectorServer(t *testing.T) {
 }
 
 func TestChunkedCollector(t *testing.T) {
-	var packets []collectPacket
+	var packets []*wire.CollectPacket
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
-		packets = append(packets, collectPacket{span, anns})
+		packets = append(packets, newCollectPacket(span, anns))
 		return nil
 	})
 
@@ -169,9 +171,9 @@ func TestChunkedCollector(t *testing.T) {
 	time.Sleep(cc.MinInterval * 2)
 
 	// Check after the MinInterval has elapsed.
-	want := []collectPacket{
-		{SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}, {"k2", []byte("v2")}, {"k4", []byte("v4")}}},
-		{SpanID{2, 3, 4}, Annotations{{"k3", []byte("v3")}}},
+	want := []*wire.CollectPacket{
+		newCollectPacket(SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}, {"k2", []byte("v2")}, {"k4", []byte("v4")}}),
+		newCollectPacket(SpanID{2, 3, 4}, Annotations{{"k3", []byte("v3")}}),
 	}
 	if !reflect.DeepEqual(packets, want) {
 		t.Errorf("after MinInterval: got packets == %v, want %v", packets, want)
