@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"sourcegraph.com/sourcegraph/apptrace"
-	"sourcegraph.com/sourcegraph/apptrace/traceapp/tmpl"
+	"sourcegraph.com/sourcegraph/appdash"
+	"sourcegraph.com/sourcegraph/appdash/traceapp/tmpl"
 
 	"github.com/gorilla/mux"
 )
@@ -136,8 +136,8 @@ func durationClass(usec int64) string {
 	return "d10"
 }
 
-func filterAnnotations(anns apptrace.Annotations) apptrace.Annotations {
-	var anns2 apptrace.Annotations
+func filterAnnotations(anns appdash.Annotations) appdash.Annotations {
+	var anns2 appdash.Annotations
 	for _, ann := range anns {
 		if ann.Key != "" && !strings.HasPrefix(ann.Key, "_") {
 			anns2 = append(anns2, ann)

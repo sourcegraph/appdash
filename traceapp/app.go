@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 // App is an HTTP application handler that also exposes methods for
@@ -17,8 +17,8 @@ import (
 type App struct {
 	*Router
 
-	Store   apptrace.Store
-	Queryer apptrace.Queryer
+	Store   appdash.Store
+	Queryer appdash.Queryer
 
 	tmplLock sync.Mutex
 	tmpls    map[string]*htmpl.Template
@@ -57,7 +57,7 @@ func (a *App) serveRoot(w http.ResponseWriter, r *http.Request) error {
 func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 	v := mux.Vars(r)
 
-	traceID, err := apptrace.ParseID(v["Trace"])
+	traceID, err := appdash.ParseID(v["Trace"])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
@@ -65,7 +65,7 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 
 	trace, err := a.Store.Trace(traceID)
 	if err != nil {
-		if err == apptrace.ErrTraceNotFound {
+		if err == appdash.ErrTraceNotFound {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return nil
 		}
@@ -74,7 +74,7 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 
 	// Get sub-span if the Span route var is present.
 	if spanIDStr := v["Span"]; spanIDStr != "" {
-		spanID, err := apptrace.ParseID(spanIDStr)
+		spanID, err := appdash.ParseID(spanIDStr)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return err
@@ -111,7 +111,7 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 
 	return a.renderTemplate(w, r, "trace.html", http.StatusOK, &struct {
 		TemplateCommon
-		Trace      *apptrace.Trace
+		Trace      *appdash.Trace
 		VisData    []timelineItem
 		ProfileURL string
 	}{
@@ -129,7 +129,7 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 
 	return a.renderTemplate(w, r, "traces.html", http.StatusOK, &struct {
 		TemplateCommon
-		Traces []*apptrace.Trace
+		Traces []*appdash.Trace
 	}{
 		Traces: traces,
 	})

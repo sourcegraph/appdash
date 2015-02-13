@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 type profile struct {
@@ -20,10 +20,10 @@ type profile struct {
 // given buffer (buf), which is then returned (prof). If an error is returned,
 // all other returned values are nil. The childProf is literally the *profile
 // associated with the given trace (t).
-func (a *App) calcProfile(buf []*profile, t *apptrace.Trace) (prof []*profile, childProf *profile, err error) {
+func (a *App) calcProfile(buf []*profile, t *appdash.Trace) (prof []*profile, childProf *profile, err error) {
 	// Unmarshal the trace's span events.
-	var events []apptrace.Event
-	if err := apptrace.UnmarshalEvents(t.Span.Annotations, &events); err != nil {
+	var events []appdash.Event
+	if err := appdash.UnmarshalEvents(t.Span.Annotations, &events); err != nil {
 		return nil, nil, err
 	}
 
@@ -54,7 +54,7 @@ func (a *App) calcProfile(buf []*profile, t *apptrace.Trace) (prof []*profile, c
 
 	// Store the time for the largest timespan event the span has.
 	for _, ev := range events {
-		ts, ok := ev.(apptrace.TimespanEvent)
+		ts, ok := ev.(appdash.TimespanEvent)
 		if !ok {
 			continue
 		}
@@ -92,7 +92,7 @@ func (a *App) calcProfile(buf []*profile, t *apptrace.Trace) (prof []*profile, c
 }
 
 // profile generates and encodes the given trace as JSON to the given writer.
-func (a *App) profile(t *apptrace.Trace, out io.Writer) error {
+func (a *App) profile(t *appdash.Trace, out io.Writer) error {
 	// Generate the profile.
 	prof, _, err := a.calcProfile(nil, t)
 	if err != nil {
