@@ -1,4 +1,4 @@
-package apptrace
+package appdash
 
 import (
 	"crypto/tls"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace/internal/wire"
+	"sourcegraph.com/sourcegraph/appdash/internal/wire"
 )
 
 func TestCollectorServer(t *testing.T) {

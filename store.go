@@ -1,4 +1,4 @@
-package apptrace
+package appdash
 
 import (
 	"encoding/gob"
@@ -279,7 +279,7 @@ func PersistEvery(s PersistentStore, interval time.Duration, file string) error 
 	for {
 		time.Sleep(interval)
 
-		f, err := ioutil.TempFile("", "apptrace")
+		f, err := ioutil.TempFile("", "appdash")
 		if err != nil {
 			return err
 		}
