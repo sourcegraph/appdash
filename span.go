@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"sourcegraph.com/sourcegraph/apptrace/internal/wire"
 )
 
 // A SpanID refers to a single span.
@@ -55,6 +57,24 @@ func (id SpanID) Format(s string, args ...interface{}) string {
 // IsRoot returns whether id is the root ID of a trace.
 func (id SpanID) IsRoot() bool {
 	return id.Parent == 0
+}
+
+// wire returns the span ID as it's protobuf definition.
+func (id SpanID) wire() *wire.CollectPacket_SpanID {
+	return &wire.CollectPacket_SpanID{
+		Trace:  (*uint64)(&id.Trace),
+		Span:   (*uint64)(&id.Span),
+		Parent: (*uint64)(&id.Parent),
+	}
+}
+
+// spanIDFromWire returns a SpanID from it's protobuf definition.
+func spanIDFromWire(w *wire.CollectPacket_SpanID) SpanID {
+	return SpanID{
+		Trace:  ID(*w.Trace),
+		Span:   ID(*w.Span),
+		Parent: ID(*w.Parent),
+	}
 }
 
 // NewRootSpanID generates a new span ID for a root span. This should
@@ -197,4 +217,31 @@ func (as Annotations) StringMap() map[string]string {
 		m[a.Key] = string(a.Value)
 	}
 	return m
+}
+
+// wire returns the set of annotations as their protobuf definitions.
+func (as Annotations) wire() (w []*wire.CollectPacket_Annotation) {
+	for _, a := range as {
+		// Important: Make a copy of a that we can retain a pointer to that
+		// doesn't change after each iteration. Otherwise all wire annotations
+		// would have the same key.
+		cpy := a
+		w = append(w, &wire.CollectPacket_Annotation{
+			Key:   &cpy.Key,
+			Value: cpy.Value,
+		})
+	}
+	return
+}
+
+// annotationsFromWire returns Annotations from their protobuf definitions.
+func annotationsFromWire(as []*wire.CollectPacket_Annotation) Annotations {
+	var w Annotations
+	for _, a := range as {
+		w = append(w, Annotation{
+			Key:   *a.Key,
+			Value: a.Value,
+		})
+	}
+	return w
 }

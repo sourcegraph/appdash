@@ -1,9 +1,7 @@
 package apptrace
 
 import (
-	"bufio"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +10,17 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	pio "github.com/gogo/protobuf/io"
+	"sourcegraph.com/sourcegraph/apptrace/internal/wire"
 )
+
+// maxMessageSize is the maximum buffer size for delimited protobuf messages.
+// Effectively, the client may request the server to allocate a buffer of up to
+// maxMessageSize -- so choose carefully.
+//
+// We use 32KiB here.
+const maxMessageSize = 32 * 1024
 
 // A Collector collects events that occur in spans.
 type Collector interface {
@@ -23,6 +31,15 @@ type Collector interface {
 // Store.
 func NewLocalCollector(s Store) Collector {
 	return s
+}
+
+// newCollectPacket returns an initialized *wire.CollectPacket given a span and
+// set of annotations.
+func newCollectPacket(s SpanID, as Annotations) *wire.CollectPacket {
+	return &wire.CollectPacket{
+		Spanid:     s.wire(),
+		Annotation: as.wire(),
+	}
 }
 
 // A ChunkedCollector groups annotations together that have the same
@@ -45,7 +62,7 @@ type ChunkedCollector struct {
 	stopChan         chan struct{}
 
 	pending         []SpanID
-	pendingBySpanID map[SpanID]*collectPacket
+	pendingBySpanID map[SpanID]*wire.CollectPacket
 
 	// mu protects pending, pendingBySpanID, lastErr, started,
 	// stopped, and stopChan.
@@ -67,15 +84,15 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 	}
 
 	if cc.pendingBySpanID == nil {
-		cc.pendingBySpanID = map[SpanID]*collectPacket{}
+		cc.pendingBySpanID = map[SpanID]*wire.CollectPacket{}
 	}
 
 	if p, present := cc.pendingBySpanID[span]; present {
 		if len(anns) > 0 {
-			p.Annotations = append(p.Annotations, anns...)
+			p.Annotation = append(p.Annotation, Annotations(anns).wire()...)
 		}
 	} else {
-		cc.pendingBySpanID[span] = &collectPacket{span, anns}
+		cc.pendingBySpanID[span] = newCollectPacket(span, anns)
 		cc.pending = append(cc.pending, span)
 	}
 
@@ -99,7 +116,7 @@ func (cc *ChunkedCollector) Flush() error {
 	var errs []error
 	for _, spanID := range pending {
 		p := pendingBySpanID[spanID]
-		if err := cc.Collector.Collect(p.SpanID, p.Annotations...); err != nil {
+		if err := cc.Collector.Collect(spanIDFromWire(p.Spanid), annotationsFromWire(p.Annotation)...); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -139,12 +156,6 @@ func (cc *ChunkedCollector) Stop() {
 	defer cc.mu.Unlock()
 	close(cc.stopChan)
 	cc.stopped = true
-}
-
-// A collectPacket is sent between a client and server collector.
-type collectPacket struct {
-	SpanID      SpanID
-	Annotations Annotations
 }
 
 // NewRemoteCollector creates a collector that sends data to a
@@ -192,7 +203,7 @@ type RemoteCollector struct {
 // Collect implements the Collector interface by sending the events that
 // occured in the span to the remote collector server (see CollectorServer).
 func (rc *RemoteCollector) Collect(span SpanID, anns ...Annotation) error {
-	return rc.collectAndRetry(collectPacket{span, anns})
+	return rc.collectAndRetry(newCollectPacket(span, anns))
 }
 
 // connect makes a connection to the collector server. It must be
@@ -223,7 +234,7 @@ func (rc *RemoteCollector) Close() error {
 	return nil
 }
 
-func (rc *RemoteCollector) collectAndRetry(p collectPacket) error {
+func (rc *RemoteCollector) collectAndRetry(p *wire.CollectPacket) error {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
@@ -232,7 +243,7 @@ func (rc *RemoteCollector) collectAndRetry(p collectPacket) error {
 			return nil
 		}
 		if rc.Debug {
-			rc.log().Printf("Reconnecting to send %v", p.SpanID)
+			rc.log().Printf("Reconnecting to send %v", spanIDFromWire(p.Spanid))
 		}
 	}
 	if err := rc.connect(); err != nil {
@@ -241,20 +252,29 @@ func (rc *RemoteCollector) collectAndRetry(p collectPacket) error {
 	return rc.collect(p)
 }
 
-func (rc *RemoteCollector) collect(p collectPacket) error {
-	bw := bufio.NewWriter(rc.conn)
-	enc := json.NewEncoder(bw)
+func (rc *RemoteCollector) collect(p *wire.CollectPacket) error {
 	if rc.Debug {
-		rc.log().Printf("Sending %v", p.SpanID)
+		rc.log().Printf("Sending %v", spanIDFromWire(p.Spanid))
 	}
-	if err := enc.Encode(p); err != nil {
+
+	// Create a buffered writer and protobuf delimited writer.
+	w := pio.NewDelimitedWriter(rc.conn)
+
+	// Send our message, close writer.
+	if err := w.WriteMsg(p); err != nil {
 		return err
 	}
-	if err := bw.Flush(); err != nil {
-		return err
-	}
+
+	// TODO(slimsag): We're leaking the writer here. DelimitedWriter.Close
+	// closes the underlying connection as well. The lifetime is identical to
+	// rc.conn -- we can probably swap them out.
+	//
+	//if err := w.Close(); err != nil {
+	//	return err
+	//}
+
 	if rc.Debug {
-		rc.log().Printf("Sent %v", p.SpanID)
+		rc.log().Printf("Sent %v", spanIDFromWire(p.Spanid))
 	}
 	return nil
 }
@@ -321,28 +341,29 @@ func (cs *CollectorServer) handleConn(conn net.Conn) (err error) {
 	}()
 	defer conn.Close()
 
-	br := bufio.NewReader(conn)
-	dec := json.NewDecoder(br)
+	rdr := pio.NewDelimitedReader(conn, maxMessageSize)
+	defer rdr.Close()
 	for {
-		var p collectPacket
-		if err := dec.Decode(&p); err != nil {
+		p := &wire.CollectPacket{}
+		if err = rdr.ReadMsg(p); err != nil {
 			if err == io.EOF {
 				return nil
 			}
-			return fmt.Errorf("Decode: %s", err)
+			return fmt.Errorf("ReadMsg: %s", err)
 		}
 
+		spanID := spanIDFromWire(p.Spanid)
 		if cs.Debug || cs.Trace {
-			cs.log().Printf("Client %s: received span %v with %d annotations", conn.RemoteAddr(), p.SpanID, len(p.Annotations))
+			cs.log().Printf("Client %s: received span %v with %d annotations", conn.RemoteAddr(), spanID, len(p.Annotation))
 		}
 		if cs.Trace {
-			for i, ann := range p.Annotations {
-				cs.log().Printf("Client %s: span %v: annotation %d: %s=%q", conn.RemoteAddr(), p.SpanID.Span, i, ann.Key, ann.Value)
+			for i, ann := range p.Annotation {
+				cs.log().Printf("Client %s: span %v: annotation %d: %s=%q", conn.RemoteAddr(), p.Spanid.Span, i, ann.Key, ann.Value)
 			}
 		}
 
-		if err := cs.c.Collect(p.SpanID, p.Annotations...); err != nil {
-			return fmt.Errorf("Collect %v: %s", p.SpanID, err)
+		if err = cs.c.Collect(spanID, annotationsFromWire(p.Annotation)...); err != nil {
+			return fmt.Errorf("Collect %v: %s", spanID, err)
 		}
 	}
 }
