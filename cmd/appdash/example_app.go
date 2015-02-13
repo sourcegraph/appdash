@@ -9,15 +9,15 @@ import (
 	"net/url"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
-	"sourcegraph.com/sourcegraph/apptrace/httptrace"
-	"sourcegraph.com/sourcegraph/apptrace/traceapp"
+	"sourcegraph.com/sourcegraph/appdash/httptrace"
+	"sourcegraph.com/sourcegraph/appdash/traceapp"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 func init() {
 	_, err := CLI.AddCommand("demo",
-		"start a demo web app that uses apptrace",
-		"The demo command starts a demo web app that uses apptrace.",
+		"start a demo web app that uses appdash",
+		"The demo command starts a demo web app that uses appdash.",
 		&demoCmd,
 	)
 	if err != nil {
@@ -26,39 +26,39 @@ func init() {
 }
 
 type DemoCmd struct {
-	ApptraceHTTPAddr string `long:"apptrace-http" description:"apptrace HTTP listen address" default:":8700"`
-	DemoHTTPAddr     string `long:"demo-http" description:"demo app HTTP listen address" default:":8699"`
-	Debug            bool   `long:"debug" description:"debug logging"`
-	Trace            bool   `long:"trace" description:"trace logging"`
+	appdashHTTPAddr string `long:"appdash-http" description:"appdash HTTP listen address" default:":8700"`
+	DemoHTTPAddr    string `long:"demo-http" description:"demo app HTTP listen address" default:":8699"`
+	Debug           bool   `long:"debug" description:"debug logging"`
+	Trace           bool   `long:"trace" description:"trace logging"`
 }
 
 var demoCmd DemoCmd
 
 func (c *DemoCmd) Execute(args []string) error {
-	store := apptrace.NewMemoryStore()
+	store := appdash.NewMemoryStore()
 
 	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
 		log.Fatal(err)
 	}
 	collectorPort := l.Addr().(*net.TCPAddr).Port
-	log.Printf("Apptrace collector listening on tcp:%d", collectorPort)
-	cs := apptrace.NewServer(l, apptrace.NewLocalCollector(store))
+	log.Printf("Appdash collector listening on tcp:%d", collectorPort)
+	cs := appdash.NewServer(l, appdash.NewLocalCollector(store))
 	cs.Debug = c.Debug
 	cs.Trace = c.Trace
 	go cs.Start()
 
-	apptraceURLStr := "http://localhost" + c.ApptraceHTTPAddr
-	apptraceURL, err := url.Parse(apptraceURLStr)
+	appdashURLStr := "http://localhost" + c.AppdashHTTPAddr
+	appdashURL, err := url.Parse(appdashURLStr)
 	if err != nil {
-		log.Fatalf("Error parsing http://localhost:%s: %s", c.ApptraceHTTPAddr, err)
+		log.Fatalf("Error parsing http://localhost:%s: %s", c.AppdashHTTPAddr, err)
 	}
-	log.Printf("Apptrace web UI running at %s", apptraceURL)
+	log.Printf("Appdash web UI running at %s", appdashURL)
 	tapp := traceapp.New(nil)
 	tapp.Store = store
 	tapp.Queryer = store
 	go func() {
-		log.Fatal(http.ListenAndServe(c.ApptraceHTTPAddr, tapp))
+		log.Fatal(http.ListenAndServe(c.AppdashHTTPAddr, tapp))
 	}()
 
 	demoURLStr := "http://localhost" + c.DemoHTTPAddr
@@ -66,16 +66,16 @@ func (c *DemoCmd) Execute(args []string) error {
 	if err != nil {
 		log.Fatalf("Error parsing http://localhost:%s: %s", c.DemoHTTPAddr, err)
 	}
-	localCollector := apptrace.NewRemoteCollector(fmt.Sprintf(":%d", collectorPort))
+	localCollector := appdash.NewRemoteCollector(fmt.Sprintf(":%d", collectorPort))
 	http.Handle("/", &middlewareHandler{
 		middleware: httptrace.Middleware(localCollector, &httptrace.MiddlewareConfig{
 			RouteName:      func(r *http.Request) string { return r.URL.Path },
 			SetContextSpan: requestSpans.setRequestSpan,
 		}),
-		next: &demoApp{collector: localCollector, baseURL: demoURL, apptraceURL: apptraceURL},
+		next: &demoApp{collector: localCollector, baseURL: demoURL, appdashURL: appdashURL},
 	})
 	log.Println()
-	log.Printf("Apptrace demo app running at %s", demoURL)
+	log.Printf("Appdash demo app running at %s", demoURL)
 	return http.ListenAndServe(c.DemoHTTPAddr, nil)
 }
 
@@ -89,9 +89,9 @@ func (h *middlewareHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type demoApp struct {
-	collector   apptrace.Collector
-	baseURL     *url.URL
-	apptraceURL *url.URL
+	collector  appdash.Collector
+	baseURL    *url.URL
+	appdashURL *url.URL
 }
 
 func (a *demoApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -99,14 +99,14 @@ func (a *demoApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.URL.Path {
 	case "/":
-		io.WriteString(w, `<h1>Apptrace demo</h1>
+		io.WriteString(w, `<h1>Appdash demo</h1>
 <p>Welcome! Click some links and then view the traces for each HTTP request by following the link at the bottom of the page.
 <ul>
 <li><a href="/api-calls">Visit a page that issues some API calls</a></li>
 </ul>`)
 	case "/api-calls":
 		httpClient := &http.Client{
-			Transport: &httptrace.Transport{Recorder: apptrace.NewRecorder(span, a.collector), SetName: true},
+			Transport: &httptrace.Transport{Recorder: appdash.NewRecorder(span, a.collector), SetName: true},
 		}
 		resp, err := httpClient.Get(a.baseURL.ResolveReference(&url.URL{Path: "/endpoint-A"}).String())
 		if err == nil {
@@ -135,18 +135,18 @@ func (a *demoApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spanURL := a.apptraceURL.ResolveReference(&url.URL{Path: fmt.Sprintf("/traces/%v", span.Trace)})
-	io.WriteString(w, fmt.Sprintf(`<br><br><hr><a href="%s">View request trace on apptrace</a> (trace ID is %s)`, spanURL, span.Trace))
+	spanURL := a.appdashURL.ResolveReference(&url.URL{Path: fmt.Sprintf("/traces/%v", span.Trace)})
+	io.WriteString(w, fmt.Sprintf(`<br><br><hr><a href="%s">View request trace on appdash</a> (trace ID is %s)`, spanURL, span.Trace))
 }
 
-type requestSpanMap map[*http.Request]apptrace.SpanID
+type requestSpanMap map[*http.Request]appdash.SpanID
 
-// requestSpans stores the apptrace span ID associated with each HTTP
+// requestSpans stores the appdash span ID associated with each HTTP
 // request. In a real app, you would use something like
 // gorilla/context instead of a map (so that entries get removed when
 // handling is completed, etc.).
 var requestSpans = requestSpanMap{}
 
-func (m requestSpanMap) setRequestSpan(r *http.Request, spanID apptrace.SpanID) {
+func (m requestSpanMap) setRequestSpan(r *http.Request, spanID appdash.SpanID) {
 	m[r] = spanID
 }

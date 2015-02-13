@@ -5,28 +5,28 @@ import (
 	"log"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
-	"sourcegraph.com/sourcegraph/apptrace/sqltrace"
+	"sourcegraph.com/sourcegraph/appdash/sqltrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
-func sampleData(c apptrace.Collector) error {
+func sampleData(c appdash.Collector) error {
 	const (
 		numTraces        = 5
 		numSpansPerTrace = 7
 	)
 	log.Printf("Adding sample data (%d traces with %d spans each)", numTraces, numSpansPerTrace)
-	for i := apptrace.ID(1); i <= numTraces; i++ {
-		traceID := apptrace.NewRootSpanID()
-		traceRec := apptrace.NewRecorder(traceID, c)
+	for i := appdash.ID(1); i <= numTraces; i++ {
+		traceID := appdash.NewRootSpanID()
+		traceRec := appdash.NewRecorder(traceID, c)
 		traceRec.Name("Request")
 		traceRec.Event(fakeEvent("root", 0))
 
 		lastSpanID := traceID
-		for j := apptrace.ID(1); j < numSpansPerTrace; j++ {
+		for j := appdash.ID(1); j < numSpansPerTrace; j++ {
 			// The parent span is the predecessor.
-			spanID := apptrace.NewSpanID(lastSpanID)
+			spanID := appdash.NewSpanID(lastSpanID)
 
-			rec := apptrace.NewRecorder(spanID, c)
+			rec := appdash.NewRecorder(spanID, c)
 			rec.Name(fakeNames[int(j+i)%len(fakeNames)])
 			if j%3 == 0 {
 				rec.Log("hello")
