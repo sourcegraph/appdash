@@ -26,7 +26,7 @@ func init() {
 }
 
 type DemoCmd struct {
-	appdashHTTPAddr string `long:"appdash-http" description:"appdash HTTP listen address" default:":8700"`
+	AppdashHTTPAddr string `long:"appdash-http" description:"appdash HTTP listen address" default:":8700"`
 	DemoHTTPAddr    string `long:"demo-http" description:"demo app HTTP listen address" default:":8699"`
 	Debug           bool   `long:"debug" description:"debug logging"`
 	Trace           bool   `long:"trace" description:"trace logging"`
