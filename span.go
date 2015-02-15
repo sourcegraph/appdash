@@ -1,4 +1,4 @@
-package apptrace
+package appdash
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"sourcegraph.com/sourcegraph/apptrace/internal/wire"
+	"sourcegraph.com/sourcegraph/appdash/internal/wire"
 )
 
 // A SpanID refers to a single span.

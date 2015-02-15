@@ -9,7 +9,7 @@ import (
 )
 
 // CLI is the go-flags CLI object that parses command-line arguments and runs commands.
-var CLI = flags.NewNamedParser("apptrace", flags.Default)
+var CLI = flags.NewNamedParser("appdash", flags.Default)
 
 // GlobalOpt contains global options.
 var GlobalOpt struct {
@@ -17,7 +17,7 @@ var GlobalOpt struct {
 }
 
 func init() {
-	CLI.LongDescription = "apptrace is an application tracing system"
+	CLI.LongDescription = "appdash is an application tracing system"
 	CLI.AddGroup("Global options", "", &GlobalOpt)
 }
 

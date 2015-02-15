@@ -5,10 +5,10 @@ import (
 	"net/url"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 
-	_ "sourcegraph.com/sourcegraph/apptrace/httptrace"
-	_ "sourcegraph.com/sourcegraph/apptrace/sqltrace"
+	_ "sourcegraph.com/sourcegraph/appdash/httptrace"
+	_ "sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
 
 type timelineItem struct {
@@ -27,15 +27,15 @@ type timelineItemTimespan struct {
 	End   int64  `json:"ending_time"`   // msec since epoch
 }
 
-func (a *App) d3timeline(t *apptrace.Trace) ([]timelineItem, error) {
+func (a *App) d3timeline(t *appdash.Trace) ([]timelineItem, error) {
 	return a.d3timelineInner(t, 0)
 }
 
-func (a *App) d3timelineInner(t *apptrace.Trace, depth int) ([]timelineItem, error) {
+func (a *App) d3timelineInner(t *appdash.Trace, depth int) ([]timelineItem, error) {
 	var items []timelineItem
 
-	var events []apptrace.Event
-	if err := apptrace.UnmarshalEvents(t.Span.Annotations, &events); err != nil {
+	var events []appdash.Event
+	if err := appdash.UnmarshalEvents(t.Span.Annotations, &events); err != nil {
 		return nil, err
 	}
 
@@ -67,7 +67,7 @@ func (a *App) d3timelineInner(t *apptrace.Trace, depth int) ([]timelineItem, err
 		item.Visible = true
 	}
 	for _, e := range events {
-		if e, ok := e.(apptrace.TimespanEvent); ok {
+		if e, ok := e.(appdash.TimespanEvent); ok {
 			start := e.Start().UnixNano() / int64(time.Millisecond)
 			end := e.End().UnixNano() / int64(time.Millisecond)
 			ts := timelineItemTimespan{

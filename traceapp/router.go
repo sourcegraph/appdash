@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	"github.com/gorilla/mux"
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 const (
@@ -43,22 +43,22 @@ func (r *Router) URLTo(route string) (*url.URL, error) {
 }
 
 // URLToTrace constructs a URL to a given trace by ID.
-func (r *Router) URLToTrace(id apptrace.ID) (*url.URL, error) {
+func (r *Router) URLToTrace(id appdash.ID) (*url.URL, error) {
 	return r.r.Get(TraceRoute).URL("Trace", id.String())
 }
 
 // URLToTraceSpan constructs a URL to a sub-span in a trace.
-func (r *Router) URLToTraceSpan(trace, span apptrace.ID) (*url.URL, error) {
+func (r *Router) URLToTraceSpan(trace, span appdash.ID) (*url.URL, error) {
 	return r.r.Get(TraceSpanRoute).URL("Trace", trace.String(), "Span", span.String())
 }
 
 // URLToTraceProfile constructs a URL to a trace's JSON profile.
-func (r *Router) URLToTraceProfile(trace apptrace.ID) (*url.URL, error) {
+func (r *Router) URLToTraceProfile(trace appdash.ID) (*url.URL, error) {
 	return r.r.Get(TraceProfileRoute).URL("Trace", trace.String())
 }
 
 // URLToTraceSpanProfile constructs a URL to a sub-span's JSON profile in a
 // trace.
-func (r *Router) URLToTraceSpanProfile(trace, span apptrace.ID) (*url.URL, error) {
+func (r *Router) URLToTraceSpanProfile(trace, span appdash.ID) (*url.URL, error) {
 	return r.r.Get(TraceSpanProfileRoute).URL("Trace", trace.String(), "Span", span.String())
 }

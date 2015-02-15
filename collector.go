@@ -1,4 +1,4 @@
-package apptrace
+package appdash
 
 import (
 	"crypto/tls"
@@ -12,7 +12,7 @@ import (
 	"time"
 
 	pio "github.com/gogo/protobuf/io"
-	"sourcegraph.com/sourcegraph/apptrace/internal/wire"
+	"sourcegraph.com/sourcegraph/appdash/internal/wire"
 )
 
 // maxMessageSize is the maximum buffer size for delimited protobuf messages.

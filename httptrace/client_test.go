@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
-var _ apptrace.Event = ClientEvent{}
+var _ appdash.Event = ClientEvent{}
 
 func TestNewClientEvent(t *testing.T) {
 	r := &http.Request{
@@ -34,7 +34,7 @@ func TestNewClientEvent(t *testing.T) {
 	if e.Schema() != "HTTPClient" {
 		t.Errorf("unexpected schema: %v", e.Schema())
 	}
-	anns, err := apptrace.MarshalEvent(e)
+	anns, err := appdash.MarshalEvent(e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +60,8 @@ func TestNewClientEvent(t *testing.T) {
 }
 
 func TestTransport(t *testing.T) {
-	ms := apptrace.NewMemoryStore()
-	rec := apptrace.NewRecorder(apptrace.SpanID{1, 2, 3}, apptrace.NewLocalCollector(ms))
+	ms := appdash.NewMemoryStore()
+	rec := appdash.NewRecorder(appdash.SpanID{1, 2, 3}, appdash.NewLocalCollector(ms))
 
 	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
 	req.Header.Set("X-Req-Header", "a")
@@ -82,11 +82,11 @@ func TestTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	spanID, err := apptrace.ParseSpanID(mt.req.Header.Get("Span-ID"))
+	spanID, err := appdash.ParseSpanID(mt.req.Header.Get("Span-ID"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (apptrace.SpanID{1, spanID.Span, 2}); *spanID != want {
+	if want := (appdash.SpanID{1, spanID.Span, 2}); *spanID != want {
 		t.Errorf("got Span-ID in header %+v, want %+v", *spanID, want)
 	}
 
@@ -96,7 +96,7 @@ func TestTransport(t *testing.T) {
 	}
 
 	var e ClientEvent
-	if err := apptrace.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
+	if err := appdash.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
 		t.Fatal(err)
 	}
 

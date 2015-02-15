@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 func init() {
@@ -30,18 +30,18 @@ type SendCmd struct {
 var sendCmd SendCmd
 
 func (c *SendCmd) Execute(args []string) error {
-	var rc *apptrace.RemoteCollector
+	var rc *appdash.RemoteCollector
 	switch c.CollectorProto {
 	case "tcp":
-		rc = apptrace.NewRemoteCollector(c.CollectorAddr)
+		rc = appdash.NewRemoteCollector(c.CollectorAddr)
 	case "tls":
-		rc = apptrace.NewTLSRemoteCollector(c.CollectorAddr, &tls.Config{ServerName: c.ServerName})
+		rc = appdash.NewTLSRemoteCollector(c.CollectorAddr, &tls.Config{ServerName: c.ServerName})
 	default:
 		return fmt.Errorf("unknown proto: %q", c.CollectorProto)
 	}
 	rc.Debug = c.Debug
 
-	rcc := &apptrace.ChunkedCollector{
+	rcc := &appdash.ChunkedCollector{
 		Collector:   rc,
 		MinInterval: time.Second,
 	}

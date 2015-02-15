@@ -1,4 +1,4 @@
-package apptrace
+package appdash
 
 import (
 	"encoding/json"

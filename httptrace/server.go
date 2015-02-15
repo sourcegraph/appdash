@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
-func init() { apptrace.RegisterEvent(ServerEvent{}) }
+func init() { appdash.RegisterEvent(ServerEvent{}) }
 
 // NewServerEvent returns an event which records various aspects of an
 // HTTP response. It takes an HTTP request, not response, as input
@@ -57,7 +57,7 @@ func (e ServerEvent) End() time.Time   { return e.ServerSend }
 // Middleware creates a new http.Handler middleware
 // (negroni-compliant) that records incoming HTTP requests to the
 // collector c as "HTTPServer"-schema events.
-func Middleware(c apptrace.Collector, conf *MiddlewareConfig) func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func Middleware(c appdash.Collector, conf *MiddlewareConfig) func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	return func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		spanID, spanFromHeader, err := getSpanID(r.Header)
 		if err != nil {
@@ -88,7 +88,7 @@ func Middleware(c apptrace.Collector, conf *MiddlewareConfig) func(rw http.Respo
 		e.Response = responseInfo(rr.partialResponse())
 		e.ServerSend = time.Now()
 
-		rec := apptrace.NewRecorder(*spanID, c)
+		rec := appdash.NewRecorder(*spanID, c)
 		if e.Route != "" {
 			rec.Name(e.Route)
 		} else {
@@ -112,7 +112,7 @@ type MiddlewareConfig struct {
 	// either taken from the client request header or created anew) in
 	// the HTTP request context, so it may be used by other parts of
 	// the handling process.
-	SetContextSpan func(*http.Request, apptrace.SpanID)
+	SetContextSpan func(*http.Request, appdash.SpanID)
 }
 
 // responseInfoRecorder is an http.ResponseWriter that records a

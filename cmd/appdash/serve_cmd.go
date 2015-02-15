@@ -14,14 +14,14 @@ import (
 
 	"strings"
 
-	"sourcegraph.com/sourcegraph/apptrace"
-	"sourcegraph.com/sourcegraph/apptrace/traceapp"
+	"sourcegraph.com/sourcegraph/appdash"
+	"sourcegraph.com/sourcegraph/appdash/traceapp"
 )
 
 func init() {
 	_, err := CLI.AddCommand("serve",
-		"start an apptrace server",
-		"The serve command starts an apptrace server.",
+		"start an appdash server",
+		"The serve command starts an appdash server.",
 		&serveCmd,
 	)
 	if err != nil {
@@ -34,7 +34,7 @@ type ServeCmd struct {
 	HTTPAddr      string `long:"http" description:"HTTP listen address" default:":7700"`
 	SampleData    bool   `long:"sample-data" description:"add sample data"`
 
-	StoreFile       string        `short:"f" long:"store-file" description:"persisted store file" default:"/tmp/apptrace.gob"`
+	StoreFile       string        `short:"f" long:"store-file" description:"persisted store file" default:"/tmp/appdash.gob"`
 	PersistInterval time.Duration `short:"p" long:"persist-interval" description:"interval between persisting store to file" default:"2s"`
 
 	Debug bool `short:"d" long:"debug" description:"debug log"`
@@ -52,8 +52,8 @@ var serveCmd ServeCmd
 
 func (c *ServeCmd) Execute(args []string) error {
 	var (
-		memStore = apptrace.NewMemoryStore()
-		Store    = apptrace.Store(memStore)
+		memStore = appdash.NewMemoryStore()
+		Store    = appdash.Store(memStore)
 		Queryer  = memStore
 	)
 
@@ -75,7 +75,7 @@ func (c *ServeCmd) Execute(args []string) error {
 		}
 		if c.PersistInterval != 0 {
 			go func() {
-				if err := apptrace.PersistEvery(memStore, c.PersistInterval, c.StoreFile); err != nil {
+				if err := appdash.PersistEvery(memStore, c.PersistInterval, c.StoreFile); err != nil {
 					log.Fatal(err)
 				}
 			}()
@@ -83,7 +83,7 @@ func (c *ServeCmd) Execute(args []string) error {
 	}
 
 	if c.DeleteAfter > 0 {
-		Store = &apptrace.RecentStore{
+		Store = &appdash.RecentStore{
 			MinEvictAge: c.DeleteAfter,
 			DeleteStore: memStore,
 			Debug:       true,
@@ -145,17 +145,17 @@ func (c *ServeCmd) Execute(args []string) error {
 		}
 		proto = "plaintext TCP (no security)"
 	}
-	log.Printf("apptrace collector listening on %s (%s)", c.CollectorAddr, proto)
-	cs := apptrace.NewServer(l, apptrace.NewLocalCollector(Store))
+	log.Printf("appdash collector listening on %s (%s)", c.CollectorAddr, proto)
+	cs := appdash.NewServer(l, appdash.NewLocalCollector(Store))
 	cs.Debug = c.Debug
 	cs.Trace = c.Trace
 	go cs.Start()
 
 	if c.TLSCert != "" || c.TLSKey != "" {
-		log.Printf("apptrace HTTPS server listening on %s (TLS cert %s, key %s)", c.HTTPAddr, c.TLSCert, c.TLSKey)
+		log.Printf("appdash HTTPS server listening on %s (TLS cert %s, key %s)", c.HTTPAddr, c.TLSCert, c.TLSKey)
 		return http.ListenAndServeTLS(c.HTTPAddr, c.TLSCert, c.TLSKey, h)
 	} else {
-		log.Printf("apptrace HTTP server listening on %s", c.HTTPAddr)
+		log.Printf("appdash HTTP server listening on %s", c.HTTPAddr)
 		return http.ListenAndServe(c.HTTPAddr, h)
 	}
 }
@@ -177,6 +177,6 @@ func (h *basicAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.Handler.ServeHTTP(w, r)
 		return
 	}
-	w.Header().Set("WWW-Authenticate", `Basic realm="apptrace"`)
+	w.Header().Set("WWW-Authenticate", `Basic realm="appdash"`)
 	http.Error(w, "unauthorized", http.StatusUnauthorized)
 }

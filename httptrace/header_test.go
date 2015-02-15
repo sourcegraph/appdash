@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"testing"
 
-	"sourcegraph.com/sourcegraph/apptrace"
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 func TestSetSpanIDHeader(t *testing.T) {
 	h := make(http.Header)
-	SetSpanIDHeader(h, apptrace.SpanID{
+	SetSpanIDHeader(h, appdash.SpanID{
 		Trace: 100,
 		Span:  150,
 	})
