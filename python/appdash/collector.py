@@ -44,13 +44,28 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
         if self._debug:
             print "appdash: %s" % (" ".join(args))
 
-    # collect collects a packet to be flushed at a later time, when connection
-    # has been made.
+    # collect collects annotations for the given spanID.
     #
-    # TODO(slimsag): We shouldn't blindly take a protobuf CollectionPacket. It
-    # is too low-level for clients.
-    def collect(self, packet):
-        self._pending.append(packet)
+    # The annotations will be flushed out at a later time, when a connection
+    # to the remote server has been made.
+    def collect(self, spanID, *annotations):
+        self._log("collecting", str(len(annotations)), "annotations for", str(spanID))
+
+        # Create the protobuf message.
+        p = wire.CollectPacket()
+        p.spanid.trace = spanID.trace
+        p.spanid.span = spanID.span
+        p.spanid.parent = spanID.parent
+
+        # Add each annotation to the message.
+        for a in annotations:
+            ap = p.annotation.add()
+            ap.key = a.key
+            ap.value = a.value
+
+        # Append the collection packet to the pending queue and flush later if
+        # we already have a remote connection.
+        self._pending.append(p)
         if self._remote != None:
             self._reactor.callLater(1/2, self.__flush)
 
