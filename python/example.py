@@ -14,11 +14,12 @@ collector = appdash.RemoteCollectorFactory(reactor, debug=True)
 import appdash.collector_pb2 as wire
 
 # Send a few packets.
+traceID = appdash.generateID()
 for i in range(0, 7):
     # Create a collect packet
     p = wire.CollectPacket()
-    p.spanid.trace = 6665
-    p.spanid.span = 6665
+    p.spanid.trace = traceID
+    p.spanid.span = appdash.generateID()
     p.spanid.parent = 0
 
     # Annotation 1
