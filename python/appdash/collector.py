@@ -52,12 +52,12 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
     def collect(self, packet):
         self._pending.append(packet)
         if self._remote != None:
-            self._reactor.callLater(1/2, self._flush)
+            self._reactor.callLater(1/2, self.__flush)
 
-    # _flush is called internally after either a new collection has occured, or
+    # __flush is called internally after either a new collection has occured, or
     # after connection has been made with the remote server. It writes all the
     # pending messages out to the remote.
-    def _flush(self):
+    def __flush(self):
         self._log("flushing", str(len(self._pending)), "messages")
         for p in self._pending:
             self._remote.writeMsg(p)
@@ -75,7 +75,7 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
         p = CollectorProtocol()
         p._factory = self
         self._remote = p
-        self._reactor.callLater(1/2, self._flush)
+        self._reactor.callLater(1/2, self.__flush)
         return p
 
     def clientConnectionFailed(self, connector, reason):
