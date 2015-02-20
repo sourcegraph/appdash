@@ -9,32 +9,25 @@ import appdash
 # Create a remote appdash collector.
 collector = appdash.RemoteCollectorFactory(reactor, debug=True)
 
+# Create a trace.
+trace = appdash.SpanID(root=True)
 
-# TODO(slimsag): do not require direct usage of protobuf.
-import appdash.collector_pb2 as wire
-
-# Send a few packets.
-traceID = appdash.generateID()
+# Generate a few spans with some annotations.
+span = trace
 for i in range(0, 7):
-    # Create a collect packet
-    p = wire.CollectPacket()
-    p.spanid.trace = traceID
-    p.spanid.span = appdash.generateID()
-    p.spanid.parent = 0
+    # Collect some annotations.
+    a1 = appdash.Annotation(
+        key="HTTPClient",
+        value="/foo/bar?eq=1",
+    )
+    a2 = appdash.Annotation(
+        key="SQL",
+        value="select * from table;",
+    )
+    collector.collect(span, a1, a2)
 
-    # Annotation 1
-    a = p.annotation.add()
-    a.key = "HTTPClient"
-    a.value = "/foo/bar?eq=1"
-
-    # Annotation 2
-    a2 = p.annotation.add()
-    a2.key = "SQL"
-    a2.value = "select * from table;"
-
-    # Collect the packet.
-    collector.collect(p)
-
+    # Create a new child span whose parent is the last span we created.
+    span = appdash.SpanID(parent=span)
 
 # Have Twisted perform the connection and run.
 reactor.connectTCP("", 7701, collector)
