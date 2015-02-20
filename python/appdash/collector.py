@@ -1,4 +1,5 @@
 from twisted.internet.protocol import Protocol, ReconnectingClientFactory
+from twisted.internet import task
 import collector_pb2 as wire
 import varint
 from sys import stdout
@@ -66,17 +67,24 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
         # Append the collection packet to the pending queue and flush later if
         # we already have a remote connection.
         self._pending.append(p)
-        if self._remote != None:
-            self._reactor.callLater(1/2, self.__flush)
 
     # __flush is called internally after either a new collection has occured, or
     # after connection has been made with the remote server. It writes all the
     # pending messages out to the remote.
     def __flush(self):
+        if len(self._pending) == 0:
+            return
+
         self._log("flushing", str(len(self._pending)), "messages")
         for p in self._pending:
             self._remote.writeMsg(p)
+        self._log("done.")
         self._pending = []
+
+    def __startFlushing(self):
+        # Run the flush method every 1/2 second.
+        l = task.LoopingCall(self.__flush)
+        l.start(1/2)
 
     def startedConnecting(self, connector):
         self._log('connecting..')
@@ -90,7 +98,7 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
         p = CollectorProtocol()
         p._factory = self
         self._remote = p
-        self._reactor.callLater(1/2, self.__flush)
+        self._reactor.callLater(1, self.__startFlushing)
         return p
 
     def clientConnectionFailed(self, connector, reason):
