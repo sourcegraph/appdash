@@ -2,20 +2,23 @@
 
 ## Setup
 
-To install appdash for python you'll first need to install Google's protobuf and the Twisted networking library through the standard `easy_install` python command:
+To install appdash for python you'll first need to install Google's protobuf, the Twisted networking library, and a RFC3339 support library through the standard `easy_install` and `pip` python package manager commands:
 
 ```
-# (Ubuntu/Linux) Install easy_install:
-sudo apt-get install python-setuptools
+# (Ubuntu/Linux) Install easy_install and pip:
+sudo apt-get install python-setuptools python-pip
 
 # Install Google's protobuf:
 easy_install protobuf
 
 # Install Twisted networking:
 easy_install twisted
+
+# Install strict-rfc3339
+pip install strict-rfc3339
 ```
 
-Depending on where Python is installed and/or what permissions the directory has, you may need to run the above `easy_install` commands as root.
+Depending on where Python is installed and/or what permissions the directory has, you may need to run the above `easy_install` and `pip` commands as root.
 
 ## Testing
 
