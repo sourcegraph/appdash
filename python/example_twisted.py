@@ -5,8 +5,11 @@ from twisted.internet import reactor
 import time
 import appdash
 
+# Appdash: Twisted Collector
+from appdash.twcollector import RemoteCollectorFactory
+
 # Create a remote appdash collector.
-collector = appdash.RemoteCollectorFactory(reactor, debug=True)
+collector = RemoteCollectorFactory(reactor, debug=True)
 
 # Create a trace.
 trace = appdash.SpanID(root=True)
