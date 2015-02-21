@@ -34,6 +34,20 @@ pip install strict-rfc3339
 
 Depending on where Python is installed and/or what permissions the directory has, you may need to run the above `easy_install` and `pip` commands as root.
 
+## Installation
+
+To install Appdash into your Python path (i.e. so you can import it into your own code), simply change directory to `sourcegraph.com/sourcewgraph/appdash/python` and run the traditional `setup.py` script:
+
+```
+# Install Python-appdash:
+cd $GOPATH/src/sourcegraph.com/sourcegraph/appdash/python
+python setup.py install
+```
+
+Again, depending on where Python is installed and/or what permissions the directory has, you may need to run the above `setup.py` script as root.
+
+To test that installation went well, in any directory _except that one_, you can launch an interactive Python interpreter and simply `import appdash`.
+
 ## Twisted Example
 
 If all is well with your setup, you should be able to change directory to `sourcegraph.com/sourcewgraph/appdash/python` and run the Twisted example:
@@ -59,8 +73,3 @@ appdash serve
 cd $GOPATH/src/sourcegraph.com/sourcegraph/appdash/python
 ./example_socket.py
 ```
-
-## TODO
-
-- Provide a way to easily install python' appdash module.
-
