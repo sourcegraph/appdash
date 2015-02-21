@@ -97,3 +97,4 @@ class SQLEvent:
             "ClientRecv": self.clientRecv,
         }
 
+# TODO(slimsag): add HTTPEvent
