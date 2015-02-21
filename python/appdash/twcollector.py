@@ -1,20 +1,17 @@
 from twisted.internet.protocol import Protocol, ReconnectingClientFactory
 from twisted.internet import task
-import collector_pb2 as wire
-import varint
 from sys import stdout
+
+import encode
 
 class CollectorProtocol(Protocol):
     # CollectorProtocol is a Twisted implementation of appdash's protobuf-based
     # collector protocol.
 
-    # writeMsg writes the protobuf message out to the protocol's transport. It
-    # is preceded with the varint-encoded length of the data (i.e. a delimited
-    # protobuf message).
+    # writeMsg writes the delimited-protobuf message out to the protocol's
+    # transport. See encodeMsg for details.
     def writeMsg(self, msg):
-        data = msg.SerializeToString()
-        self.transport.write(varint.encode(len(data)))
-        self.transport.write(data)
+        self.transport.write(encode._msg(msg))
 
     def connectionMade(self):
         self._factory._log('connected!')
@@ -52,21 +49,8 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
     def collect(self, spanID, *annotations):
         self._log("collecting", str(len(annotations)), "annotations for", str(spanID))
 
-        # Create the protobuf message.
-        p = wire.CollectPacket()
-        p.spanid.trace = spanID.trace
-        p.spanid.span = spanID.span
-        p.spanid.parent = spanID.parent
-
-        # Add each annotation to the message.
-        for a in annotations:
-            ap = p.annotation.add()
-            ap.key = a.key
-            ap.value = a.value
-
-        # Append the collection packet to the pending queue and flush later if
-        # we already have a remote connection.
-        self._pending.append(p)
+        # Append the collection packet to the pending queue.
+        self._pending.append(encode._collect(spanID, *annotations))
 
     # __flush is called internally after either a new collection has occured, or
     # after connection has been made with the remote server. It writes all the
