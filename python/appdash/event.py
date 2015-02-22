@@ -97,4 +97,147 @@ class SQLEvent:
             "ClientRecv": self.clientRecv,
         }
 
-# TODO(slimsag): add HTTPEvent
+# _flattenReqRes flattens the request or response info dictionary. It has very
+# defined functionality primarily to avoid code duplication four times below in
+# marshaling of HTTP events.
+def _flattenReqRes(reqRes, into):
+    for k, v in reqRes.items():
+        if k == "Headers":
+            into["Request.Headers." + k] = str(v)
+        else:
+            into["Request." + k] = str(v)
+    return into
+
+# HTTPServerEvent represents a HTTP event where a client's request was served.
+#
+#  e = HTTPServerEvent(
+#      send = sendTimestamp,
+#      recv = recvTimestamp,
+#      route = "/endpoint-B",
+#      user = "",
+#      requestInfo = {
+#          "Method": "GET",
+#          "URI": "/endpoint-B",
+#          "Proto": "HTTP/1.1",
+#          "Headers": {}, # dictionary of strings in proper HTTP case "Foo-Bar".
+#          "Host": "localhost:8699",
+#          "RemoteAddr": "127.0.0.1:35787",
+#          "ContentLength": 0,
+#      },
+#      responseInfo = {
+#          "Method": "GET",
+#          "URI": "/endpoint-B",
+#          "Proto": "HTTP/1.1",
+#          "Headers": { # dictionary of strings in proper HTTP case "Foo-Bar".
+#              "Span-Id": "8d4bdb285382e850/ef1ba6f3fa12d5d2/d9564f71aae8aba2",
+#          },
+#          "Host": "localhost:8699",
+#          "RemoteAddr": "127.0.0.1:35787",
+#          "ContentLength": 28,
+#      },
+#  )
+#
+class HTTPServerEvent:
+    schema = "HTTPServer"
+
+    # Request headers and information.
+    requestInfo = {}
+
+    # Response headers and information.
+    responseInfo = {}
+
+    # The route, e.g. "/endpoint-B".
+    route = ""
+
+    # The user (if any).
+    user = ""
+
+    # RFC3339-UTC timestamp of when the query was sent, and later a result received.
+    serverRecv = ""
+    serverSend = ""
+
+    def __init__(self, send, recv=None, requestInfo = {}, responseInfo = {}, route = "", user=""):
+        self.requestInfo = requestInfo
+        self.responseInfo = responseInfo
+        self.route = route
+        self.user = user
+        self.serverSend = timeString(send)
+
+        # If user didn't specify a recv time, use right now.
+        if recv:
+            self.serverRecv = timeString(recv)
+        else:
+            self.serverRecv = timeString(time.time())
+
+    def marshal(self):
+        d = {
+            "Route": self.route,
+            "User": self.user,
+            "ServerRecv": self.serverRecv,
+            "ServerSend": self.serverSend,
+        }
+        d = _flattenReqRes(self.requestInfo, d)
+        d = _flattenReqRes(self.responseInfo, d)
+        return d
+
+# HTTPClientEvent represents a HTTP event where a outbound request to a server
+# was made.
+#
+#  e = HTTPClientEvent(
+#      send = sendTimestamp,
+#      recv = recvTimestamp,
+#      requestInfo = {
+#          "Method": "GET",
+#          "URI": "/endpoint-B",
+#          "Proto": "HTTP/1.1",
+#          "Headers": {}, # dictionary of strings in proper HTTP case "Foo-Bar".
+#          "Host": "localhost:8699",
+#          "RemoteAddr": "127.0.0.1:35787",
+#          "ContentLength": 0,
+#      },
+#      responseInfo = {
+#          "Method": "GET",
+#          "URI": "/endpoint-B",
+#          "Proto": "HTTP/1.1",
+#          "Headers": { # dictionary of strings in proper HTTP case "Foo-Bar".
+#              "Span-Id": "8d4bdb285382e850/ef1ba6f3fa12d5d2/d9564f71aae8aba2",
+#          },
+#          "Host": "localhost:8699",
+#          "RemoteAddr": "127.0.0.1:35787",
+#          "ContentLength": 28,
+#      },
+#  )
+#
+class HTTPClientEvent:
+    schema = "HTTPClient"
+
+    # Request headers and information.
+    requestInfo = {}
+
+    # Response headers and information.
+    responseInfo = {}
+
+    # RFC3339-UTC timestamp of when the query was sent, and later a result received.
+    serverRecv = ""
+    serverSend = ""
+
+    def __init__(self, send, recv=None, requestInfo = {}, responseInfo = {}):
+        self.requestInfo = requestInfo
+        self.responseInfo = responseInfo
+        self.serverSend = timeString(send)
+
+        # If user didn't specify a recv time, use right now.
+        if recv:
+            self.serverRecv = timeString(recv)
+        else:
+            self.serverRecv = timeString(time.time())
+
+    def marshal(self):
+        d = {
+            "ServerRecv": self.serverRecv,
+            "ServerSend": self.serverSend,
+        }
+        d = _flattenReqRes(self.requestInfo, d)
+        d = _flattenReqRes(self.responseInfo, d)
+        return d
+
