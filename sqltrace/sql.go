@@ -20,6 +20,10 @@ type SQLEvent struct {
 // constant schema string, "SQL".
 func (SQLEvent) Schema() string { return "SQL" }
 
+// Important implements the appdash ImportantEvent by returning the SQL and Tag
+// keys.
+func (SQLEvent) Important() []string { return []string{"SQL", "Tag"} }
+
 // Start implements the appdash TimespanEvent interface by returning the time
 // at which the SQL query was sent out.
 func (e SQLEvent) Start() time.Time { return e.ClientSend }
