@@ -51,6 +51,11 @@ type ServerEvent struct {
 // Schema returns the constant "HTTPServer".
 func (ServerEvent) Schema() string { return "HTTPServer" }
 
+// Important implements the appdash ImportantEvent.
+func (ServerEvent) Important() []string {
+	return []string{"Response.StatusCode"}
+}
+
 func (e ServerEvent) Start() time.Time { return e.ServerRecv }
 func (e ServerEvent) End() time.Time   { return e.ServerSend }
 
