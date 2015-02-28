@@ -176,6 +176,23 @@ type Annotation struct {
 	Value []byte
 }
 
+// Important determines if this annotation's key is considered important to any
+// of the registered event types.
+func (a Annotation) Important() bool {
+	for _, ev := range registeredEvents {
+		i, ok := ev.(ImportantEvent)
+		if !ok {
+			continue
+		}
+		for _, k := range i.Important() {
+			if a.Key == k {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // String returns a formatted list of annotations.
 func (as Annotations) String() string {
 	var buf bytes.Buffer
