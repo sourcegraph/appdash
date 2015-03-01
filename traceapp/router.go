@@ -8,6 +8,7 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
+// Traceapp's route names.
 const (
 	RootRoute             = "traceapp.root"               // route name for root
 	TraceRoute            = "traceapp.trace"              // route name for a single trace page
@@ -17,6 +18,8 @@ const (
 	TracesRoute           = "traceapp.traces"             // route name for traces page
 )
 
+// Router is a URL router for traceapp applications. It should be created via
+// the NewRouter function.
 type Router struct{ r *mux.Router }
 
 // NewRouter creates a new URL router for a traceapp application.
