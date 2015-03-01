@@ -56,8 +56,11 @@ func (ServerEvent) Important() []string {
 	return []string{"Response.StatusCode"}
 }
 
+// Start implements the appdash TimespanEvent interface.
 func (e ServerEvent) Start() time.Time { return e.ServerRecv }
-func (e ServerEvent) End() time.Time   { return e.ServerSend }
+
+// End implements the appdash TimespanEvent interface.
+func (e ServerEvent) End() time.Time { return e.ServerSend }
 
 // Middleware creates a new http.Handler middleware
 // (negroni-compliant) that records incoming HTTP requests to the

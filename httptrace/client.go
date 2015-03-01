@@ -67,8 +67,11 @@ func (ClientEvent) Important() []string {
 	}
 }
 
+// Start implements the appdash TimespanEvent interface.
 func (e ClientEvent) Start() time.Time { return e.ClientSend }
-func (e ClientEvent) End() time.Time   { return e.ClientRecv }
+
+// End implements the appdash TimespanEvent interface.
+func (e ClientEvent) End() time.Time { return e.ClientRecv }
 
 var (
 	redacted = []string{"REDACTED"}
