@@ -38,25 +38,34 @@ var demoCmd DemoCmd
 // Execute execudes the commands with the given arguments and returns an error,
 // if any.
 func (c *DemoCmd) Execute(args []string) error {
+	// We create a new in-memory store. All information about traces will
+	// eventually be stored here.
 	store := appdash.NewMemoryStore()
 
+	// Listen on any available TCP port locally.
 	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
 		log.Fatal(err)
 	}
 	collectorPort := l.Addr().(*net.TCPAddr).Port
 	log.Printf("Appdash collector listening on tcp:%d", collectorPort)
+
+	// Start an Appdash collection server that will listen for spans and
+	// annotations and add them to the local collector (stored in-memory).
 	cs := appdash.NewServer(l, appdash.NewLocalCollector(store))
-	cs.Debug = c.Debug
-	cs.Trace = c.Trace
+	cs.Debug = c.Debug // Debug logging
+	cs.Trace = c.Trace // Trace logging
 	go cs.Start()
 
+	// Print the URL at which the web UI will be running.
 	appdashURLStr := "http://localhost" + c.AppdashHTTPAddr
 	appdashURL, err := url.Parse(appdashURLStr)
 	if err != nil {
 		log.Fatalf("Error parsing http://localhost:%s: %s", c.AppdashHTTPAddr, err)
 	}
 	log.Printf("Appdash web UI running at %s", appdashURL)
+
+	// Start the web UI in a separate goroutine.
 	tapp := traceapp.New(nil)
 	tapp.Store = store
 	tapp.Queryer = store
@@ -64,12 +73,20 @@ func (c *DemoCmd) Execute(args []string) error {
 		log.Fatal(http.ListenAndServe(c.AppdashHTTPAddr, tapp))
 	}()
 
+	// Print the URL at which the demo app is running.
 	demoURLStr := "http://localhost" + c.DemoHTTPAddr
 	demoURL, err := url.Parse(demoURLStr)
 	if err != nil {
 		log.Fatalf("Error parsing http://localhost:%s: %s", c.DemoHTTPAddr, err)
 	}
+	log.Println()
+	log.Printf("Appdash demo app running at %s", demoURL)
+
+	// The Appdash collection server that our demo app will use is running
+	// locally with our HTTP server in this case, so we set this up now.
 	localCollector := appdash.NewRemoteCollector(fmt.Sprintf(":%d", collectorPort))
+
+	// Handle the root path of our app.
 	http.Handle("/", &middlewareHandler{
 		middleware: httptrace.Middleware(localCollector, &httptrace.MiddlewareConfig{
 			RouteName:      func(r *http.Request) string { return r.URL.Path },
@@ -77,8 +94,6 @@ func (c *DemoCmd) Execute(args []string) error {
 		}),
 		next: &demoApp{collector: localCollector, baseURL: demoURL, appdashURL: appdashURL},
 	})
-	log.Println()
-	log.Printf("Appdash demo app running at %s", demoURL)
 	return http.ListenAndServe(c.DemoHTTPAddr, nil)
 }
 
