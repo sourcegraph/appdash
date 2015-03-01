@@ -350,7 +350,7 @@ func (cs *CollectorServer) handleConn(conn net.Conn) (err error) {
 		}
 		if cs.Trace {
 			for i, ann := range p.Annotation {
-				cs.log().Printf("Client %s: span %v: annotation %d: %s=%q", conn.RemoteAddr(), p.Spanid.Span, i, ann.Key, ann.Value)
+				cs.log().Printf("Client %s: span %v: annotation %d: %s=%q", conn.RemoteAddr(), p.Spanid.Span, i, *ann.Key, ann.Value)
 			}
 		}
 
