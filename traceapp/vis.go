@@ -7,6 +7,8 @@ import (
 
 	"sourcegraph.com/sourcegraph/appdash"
 
+	// Unmarshaling of events depends on the fact that they are registered with
+	// Appdash.
 	_ "sourcegraph.com/sourcegraph/appdash/httptrace"
 	_ "sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
