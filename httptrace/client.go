@@ -58,6 +58,15 @@ type ClientEvent struct {
 // Schema returns the constant "HTTPClient".
 func (ClientEvent) Schema() string { return "HTTPClient" }
 
+// Important implements the appdash ImportantEvent.
+func (ClientEvent) Important() []string {
+	return []string{
+		"Request.Headers.If-Modified-Since",
+		"Request.Headers.If-None-Match",
+		"Response.StatusCode",
+	}
+}
+
 func (e ClientEvent) Start() time.Time { return e.ClientSend }
 func (e ClientEvent) End() time.Time   { return e.ClientRecv }
 

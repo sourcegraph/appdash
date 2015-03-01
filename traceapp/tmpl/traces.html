@@ -19,7 +19,9 @@
         {{if .Span.Annotations}}
         <table class="table table-condensed table-striped">
           {{range (filterAnnotations .Span.Annotations)}}
-          <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+            {{if .Important}}
+              <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+            {{end}}
           {{end}}
         </table>
         {{end}}

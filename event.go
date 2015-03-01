@@ -11,6 +11,13 @@ type Event interface {
 	Schema() string
 }
 
+// ImportantEvent is an event that can describe in particular which annotation
+// keys it finds important. Only important annotation keys are displayed in the
+// web UI by default.
+type ImportantEvent interface {
+	Important() []string
+}
+
 // EventMarshaler is the interface implemented by an event that can
 // marshal a representation of itself into annotations.
 //

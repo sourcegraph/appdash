@@ -360,7 +360,7 @@
    padding-top: 1em;
    padding-bottom: 1em;
  }
- #profileView {
+ #profileView, #verboseDataView {
    display: none;
  }
 </style>
@@ -369,6 +369,9 @@
 <div class="viewMode btn-group btn-group-justified btn-group-xs" data-toggle="buttons" id="radioopt">
   <label class="btn btn-primary active">
     <input type="radio" name="view" id="btnDataView" value="Data View">Data View</input>
+  </label>
+  <label class="btn btn-primary">
+    <input type="radio" name="view" id="btnVerboseDataView" value="Verbose Data View">Verbose Data View</input>
   </label>
   <label class="btn btn-primary">
     <input type="radio" name="view" id="btnProfileView" value="Profile View">Profile View</input>
@@ -388,6 +391,12 @@
        $("#dataView").hide();
      }
 
+     if(id == "btnVerboseDataView") {
+       $("#verboseDataView").show();
+     } else {
+       $("#verboseDataView").hide();
+     }
+
      if(id == "btnProfileView") {
        $("#profileView").show();
      } else {
@@ -396,7 +405,7 @@
   });
 </script>
 
-<!-- The data view layout -->
+<!-- The important data view layout -->
 <ul id="dataView" class="traces">
   <li class="trace" id="span-{{.Trace.Span.ID.Span}}">
     {{if .Trace.Name}}
@@ -408,7 +417,28 @@
     {{if .Trace.Span.Annotations}}
     <table class="table table-condensed table-striped">
       {{range (filterAnnotations .Trace.Span.Annotations)}}
-      <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+        {{if .Important}}
+          <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+        {{end}}
+      {{end}}
+    </table>
+    {{end}}
+  </li>
+</ul>
+
+<!-- The verbose data view layout -->
+<ul id="verboseDataView" class="traces">
+  <li class="trace" id="span-{{.Trace.Span.ID.Span}}">
+    {{if .Trace.Name}}
+    <strong title="{{.Trace.ID}}">{{.Trace.Name}}</strong>
+    {{else}}
+    <strong title="{{.Trace.ID}}">{{.Trace.ID.Span}}</strong>
+    {{end}}
+
+    {{if .Trace.Span.Annotations}}
+    <table class="table table-condensed table-striped">
+      {{range (filterAnnotations .Trace.Span.Annotations)}}
+        <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
       {{end}}
     </table>
     {{end}}
