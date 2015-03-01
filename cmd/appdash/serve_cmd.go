@@ -29,6 +29,8 @@ func init() {
 	}
 }
 
+// ServeCmd is the command for running Appdash in server mode, where a
+// collector server and the web UI are hosted.
 type ServeCmd struct {
 	CollectorAddr string `long:"collector" description:"collector listen address" default:":7701"`
 	HTTPAddr      string `long:"http" description:"HTTP listen address" default:":7700"`
@@ -50,6 +52,8 @@ type ServeCmd struct {
 
 var serveCmd ServeCmd
 
+// Execute execudes the commands with the given arguments and returns an error,
+// if any.
 func (c *ServeCmd) Execute(args []string) error {
 	var (
 		memStore = appdash.NewMemoryStore()
@@ -154,10 +158,10 @@ func (c *ServeCmd) Execute(args []string) error {
 	if c.TLSCert != "" || c.TLSKey != "" {
 		log.Printf("appdash HTTPS server listening on %s (TLS cert %s, key %s)", c.HTTPAddr, c.TLSCert, c.TLSKey)
 		return http.ListenAndServeTLS(c.HTTPAddr, c.TLSCert, c.TLSKey, h)
-	} else {
-		log.Printf("appdash HTTP server listening on %s", c.HTTPAddr)
-		return http.ListenAndServe(c.HTTPAddr, h)
 	}
+
+	log.Printf("appdash HTTP server listening on %s", c.HTTPAddr)
+	return http.ListenAndServe(c.HTTPAddr, h)
 }
 
 func newBasicAuthHandler(user, passwd string, h http.Handler) http.Handler {

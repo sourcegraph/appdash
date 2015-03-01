@@ -25,6 +25,7 @@ func init() {
 	}
 }
 
+// DemoCmd is the command for running Appdash in demo mode.
 type DemoCmd struct {
 	AppdashHTTPAddr string `long:"appdash-http" description:"appdash HTTP listen address" default:":8700"`
 	DemoHTTPAddr    string `long:"demo-http" description:"demo app HTTP listen address" default:":8699"`
@@ -34,6 +35,8 @@ type DemoCmd struct {
 
 var demoCmd DemoCmd
 
+// Execute execudes the commands with the given arguments and returns an error,
+// if any.
 func (c *DemoCmd) Execute(args []string) error {
 	store := appdash.NewMemoryStore()
 

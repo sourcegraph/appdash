@@ -20,6 +20,8 @@ func init() {
 	}
 }
 
+// SendCmd is the command for running Appdash in sender mode, where it sends
+// sample data to a remote collector.
 type SendCmd struct {
 	CollectorAddr  string `short:"c" long:"collector" description:"collector listen address" default:":7701"`
 	CollectorProto string `short:"p" long:"proto" description:"collector protocol (tcp or tls)" default:"tcp"`
@@ -29,6 +31,8 @@ type SendCmd struct {
 
 var sendCmd SendCmd
 
+// Execute execudes the commands with the given arguments and returns an error,
+// if any.
 func (c *SendCmd) Execute(args []string) error {
 	var rc *appdash.RemoteCollector
 	switch c.CollectorProto {
