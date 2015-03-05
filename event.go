@@ -79,6 +79,16 @@ func UnmarshalEvent(as Annotations, e Event) error {
 }
 
 // RegisterEvent registers an event type for use with UnmarshalEvents.
+//
+// Events must be registered with this package in order for unmarshaling to
+// work. Much like the image package, sometimes blank imports will be used for
+// packages that register Appdash events with this package:
+//
+//  import(
+//      _ "sourcegraph.com/sourcegraph/appdash/httptrace"
+//      _ "sourcegraph.com/sourcegraph/appdash/sqltrace"
+//  )
+//
 func RegisterEvent(e Event) {
 	if _, present := registeredEvents[e.Schema()]; present {
 		panic("event schema is already registered: " + e.Schema())
