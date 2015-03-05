@@ -351,6 +351,7 @@ func (rs *RecentStore) Collect(id SpanID, anns ...Annotation) error {
 // must be held while calling evictBefore.
 func (rs *RecentStore) evictBefore(t time.Time) {
 	evictStart := time.Now()
+	rs.lastEvicted = evictStart
 	tnano := t.UnixNano()
 	var toEvict []ID
 	for id, ct := range rs.created {

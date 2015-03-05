@@ -383,3 +383,20 @@ func (s storeT) MustTrace(id ID) *Trace {
 func init() {
 	log.SetFlags(0)
 }
+
+func BenchmarkRecentStore500(b *testing.B) {
+	rs := &RecentStore{
+		DeleteStore: NewMemoryStore(),
+		MinEvictAge: 20 * time.Second,
+	}
+	var x ID
+	for i := 0; i < b.N; i++ {
+		for c := 0; c < 500; c++ {
+			x++
+			err := rs.Collect(SpanID{x, 2, 3})
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
