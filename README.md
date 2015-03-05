@@ -22,7 +22,7 @@ are provided, and you can write your own.
 To install appdash, run:
 
 ```
-go get sourcegraph.com/sourcegraph/appdash/...
+go get sourcegraph.com/sourcegraph/appdash/cmd/...
 ```
 
 Check `cmd/appdash/example_app.go` for an example Web app that uses
