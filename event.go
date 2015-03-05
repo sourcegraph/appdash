@@ -8,6 +8,8 @@ import (
 
 // An Event is a record of the occurrence of something.
 type Event interface {
+	// Schema should return the event's schema, a constant string, for example
+	// the sqltrace package defines SQLEvent which returns just "SQL".
 	Schema() string
 }
 
