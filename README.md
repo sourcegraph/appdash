@@ -29,6 +29,10 @@ Check `cmd/appdash/example_app.go` for an example Web app that uses
 appdash. Run `appdash demo` to run the app.
 
 
+## Community
+
+Questions or comments? Join us [on Slack](http://slackin.srclib.org/)!
+
 ## Development
 
 Appdash uses [go-bindata](https://github.com/jteeuwen/go-bindata) to package HTML templates with the appdash binaryfor
