@@ -1,3 +1,14 @@
+// Package traceapp implements the Appdash web UI.
+//
+// The web UI can be effectively launched using the appdash command (see
+// cmd/appdash) or via embedding this package within your app.
+//
+// Templates and other resources needed by this package to render the UI are
+// built into the program using go-bindata, so you still get to have single
+// binary deployment.
+//
+// For an example of embedding the Appdash web UI within your own application
+// via the traceapp package, see the examples/cmd/webapp example.
 package traceapp
 
 import (
