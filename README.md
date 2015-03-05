@@ -25,9 +25,9 @@ To install appdash, run:
 go get sourcegraph.com/sourcegraph/appdash/cmd/...
 ```
 
-Check `cmd/appdash/example_app.go` for an example Web app that uses
-appdash. Run `appdash demo` to run the app.
+A standalone example using Negroni and Gorilla packages is available in the `examples/cmd/webapp` folder.
 
+A demo / pure `net/http` application (which is slightly more verbose) is also available at `cmd/appdash/example_app.go`, and it can be ran easily using `appdash demo` on the command line.
 
 ## Community
 
