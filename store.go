@@ -42,7 +42,8 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
-// A MemoryStore is an in-memory Store.
+// A MemoryStore is an in-memory Store that also implements the PersistentStore
+// interface.
 type MemoryStore struct {
 	trace map[ID]*Trace        // trace ID -> trace tree
 	span  map[ID]map[ID]*Trace // trace ID -> span ID -> trace (sub)tree
@@ -243,7 +244,8 @@ type memoryStoreData struct {
 	Span  map[ID]map[ID]*Trace
 }
 
-// Write writes ms's internal data structures.
+// Write implements the PersistentStore interface by gob-encoding and writing
+// ms's internal data structures out to w.
 func (ms *MemoryStore) Write(w io.Writer) error {
 	ms.Lock()
 	defer ms.Unlock()
@@ -252,7 +254,8 @@ func (ms *MemoryStore) Write(w io.Writer) error {
 	return gob.NewEncoder(w).Encode(data)
 }
 
-// ReadFrom loads ms's internal data structures from a reader.
+// ReadFrom implements the PersistentStore interface by using gob-decoding to
+// load ms's internal data structures from the reader r.
 func (ms *MemoryStore) ReadFrom(r io.Reader) (int64, error) {
 	ms.Lock()
 	defer ms.Unlock()

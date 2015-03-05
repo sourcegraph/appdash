@@ -8,6 +8,8 @@ import (
 
 // An Event is a record of the occurrence of something.
 type Event interface {
+	// Schema should return the event's schema, a constant string, for example
+	// the sqltrace package defines SQLEvent which returns just "SQL".
 	Schema() string
 }
 
@@ -77,6 +79,16 @@ func UnmarshalEvent(as Annotations, e Event) error {
 }
 
 // RegisterEvent registers an event type for use with UnmarshalEvents.
+//
+// Events must be registered with this package in order for unmarshaling to
+// work. Much like the image package, sometimes blank imports will be used for
+// packages that register Appdash events with this package:
+//
+//  import(
+//      _ "sourcegraph.com/sourcegraph/appdash/httptrace"
+//      _ "sourcegraph.com/sourcegraph/appdash/sqltrace"
+//  )
+//
 func RegisterEvent(e Event) {
 	if _, present := registeredEvents[e.Schema()]; present {
 		panic("event schema is already registered: " + e.Schema())
