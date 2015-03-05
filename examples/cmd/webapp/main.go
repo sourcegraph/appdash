@@ -84,7 +84,7 @@ func Home(w http.ResponseWriter, r *http.Request) {
 			log.Println("/endpoint:", err)
 			continue
 		}
-		defer resp.Body.Close()
+		resp.Body.Close()
 	}
 
 	// Render the page.
