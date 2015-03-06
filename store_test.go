@@ -1,8 +1,10 @@
 package appdash
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"reflect"
@@ -408,6 +410,50 @@ func BenchmarkMemoryStore250(b *testing.B) {
 
 func BenchmarkMemoryStore1000(b *testing.B) {
 	benchmarkMemoryStoreN(b, 1000)
+}
+
+func BenchmarkMemoryStoreWrite1000(b *testing.B) {
+	ms := NewMemoryStore()
+	var x ID
+	for c := 0; c < 1000; c++ {
+		x++
+		err := ms.Collect(SpanID{x, x + 1, x + 2})
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	for i := 0; i < b.N; i++ {
+		err := ms.Write(ioutil.Discard)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkMemoryStoreReadFrom1000(b *testing.B) {
+	ms := NewMemoryStore()
+	var x ID
+	for c := 0; c < 1000; c++ {
+		x++
+		err := ms.Collect(SpanID{x, x + 1, x + 2})
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+	buf := bytes.NewBuffer(nil)
+	err := ms.Write(buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		tmp := NewMemoryStore()
+		_, err := tmp.ReadFrom(bytes.NewReader(buf.Bytes()))
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func BenchmarkRecentStore500(b *testing.B) {
