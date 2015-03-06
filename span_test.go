@@ -172,3 +172,36 @@ type annotations Annotations
 func (a annotations) Len() int           { return len(a) }
 func (a annotations) Less(i, j int) bool { return a[i].Key < a[j].Key }
 func (a annotations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+func BenchmarkNewRootSpanID(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewRootSpanID()
+	}
+}
+
+func BenchmarkNewSpanID(b *testing.B) {
+	root := NewRootSpanID()
+	for i := 0; i < b.N; i++ {
+		NewSpanID(root)
+	}
+}
+
+func BenchmarkSpanIDString(b *testing.B) {
+	id := SpanID{
+		Trace:  100,
+		Parent: 200,
+		Span:   300,
+	}
+	for i := 0; i < b.N; i++ {
+		id.String()
+	}
+}
+
+func BenchmarkParseSpanID(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, err := ParseSpanID("0000000000000064/000000000000012c")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
