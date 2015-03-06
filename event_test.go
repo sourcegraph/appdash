@@ -214,3 +214,18 @@ func BenchmarkMarshalEvent(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkUnmarshalEvents(b *testing.B) {
+	anns := Annotations{
+		{Key: "A", Value: []byte("a")},
+		{Key: "X", Value: []byte("x")},
+		{Key: "_schema:dummy"},
+		{Key: "_schema:dummy2"},
+	}
+	for i := 0; i < b.N; i++ {
+		var events []Event
+		if err := UnmarshalEvents(anns, &events); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
