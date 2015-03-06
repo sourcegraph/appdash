@@ -194,3 +194,23 @@ func (dummyEvent) Schema() string { return "dummy" }
 type dummyEvent2 struct{ A, X string }
 
 func (dummyEvent2) Schema() string { return "dummy2" }
+
+func BenchmarkMarshalEvent(b *testing.B) {
+	e := dummyEvent{
+		A: "a",
+		B: "b",
+		C: 1,
+		D: map[string]string{"k1": "v1", "k2": "v2"},
+		E: "e",
+		F: dummyEventF{
+			G: "g",
+			H: map[string]string{"k3": "v3", "k4": "v4"},
+		},
+	}
+	for i := 0; i < b.N; i++ {
+		_, err := MarshalEvent(e)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
