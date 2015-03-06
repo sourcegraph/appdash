@@ -384,6 +384,32 @@ func init() {
 	log.SetFlags(0)
 }
 
+func benchmarkMemoryStoreN(b *testing.B, n int) {
+	ms := NewMemoryStore()
+	var x ID
+	for i := 0; i < b.N; i++ {
+		for c := 0; c < n; c++ {
+			x++
+			err := ms.Collect(SpanID{x, x + 1, x + 2})
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+func BenchmarkMemoryStore100(b *testing.B) {
+	benchmarkMemoryStoreN(b, 100)
+}
+
+func BenchmarkMemoryStore250(b *testing.B) {
+	benchmarkMemoryStoreN(b, 250)
+}
+
+func BenchmarkMemoryStore1000(b *testing.B) {
+	benchmarkMemoryStoreN(b, 1000)
+}
+
 func BenchmarkRecentStore500(b *testing.B) {
 	rs := &RecentStore{
 		DeleteStore: NewMemoryStore(),
