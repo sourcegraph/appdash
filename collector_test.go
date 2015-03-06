@@ -252,3 +252,22 @@ MCUXgckTpKCuGwbJk7424Nb8bLzf3kllAiA5mUBgjfr/WtFSJdWcPQ4Zt9KTMNKD
 EUO0ukpTwEIl6wIhAMbGqZK3zAAFdq8DD2jPx+UJXnh0rnOkZBzDtJ6/iN69AiEA
 1Aq8MJgTaYsDQWyU/hDq5YkDJc9e9DSCvUIzqxQWMQE=
 -----END RSA PRIVATE KEY-----`)
+
+func BenchmarkChunkedCollector500(b *testing.B) {
+	cc := &ChunkedCollector{
+		Collector: collectorFunc(func(span SpanID, anns ...Annotation) error {
+			return nil
+		}),
+		MinInterval: time.Millisecond * 10,
+	}
+	var x ID
+	for i := 0; i < b.N; i++ {
+		for c := 0; c < 500; c++ {
+			x++
+			err := cc.Collect(SpanID{x, x + 1, x + 2})
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
