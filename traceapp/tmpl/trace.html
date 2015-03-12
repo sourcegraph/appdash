@@ -1,8 +1,24 @@
 {{define "Title"}}{{if .Trace.ID.Parent}}span {{.Trace.ID.Span}} - {{end}} trace {{.Trace.ID.Trace}} - appdash{{end}}
 
 {{define "Main"}}
-<h1>Trace {{.Trace.ID.Trace}}</h1>
+<h1>Trace {{.Trace.ID.Trace}}
+  {{if not .Trace.ID.Parent}}
+    <span style="font-size: 12px; vertical-align: middle;">
+      (<a id="copy-json" data-clipboard-text="{{.Trace.String}}">Copy as JSON</a>)
+    </span>
+    {{end}}
+</h1>
 {{if .Trace.ID.Parent}}<h2>Sub-span {{.Trace.ID.Span}}</h2>{{end}}
+
+<script type="text/javascript">
+  var client = new ZeroClipboard( document.getElementById("copy-json") );
+
+  client.on("ready", function( readyEvent ) {
+    client.on("aftercopy", function( event ) {
+      alert("JSON Trace copied to clipboard.");
+    });
+  });
+</script>
 
 <div>
 <div id="#trace-{{.Trace.ID.Trace}}" class="trace-timeline"></div>
@@ -482,4 +498,3 @@
 </script>
 
 {{end}}
-
