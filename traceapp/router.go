@@ -15,6 +15,7 @@ const (
 	TraceSpanRoute        = "traceapp.trace.span"         // route name for a single trace sub-span page
 	TraceProfileRoute     = "traceapp.trace.profile"      // route name for a JSON trace profile
 	TraceSpanProfileRoute = "traceapp.trace.span.profile" // route name for a JSON trace sub-span profile
+	TraceUploadRoute      = "traceapp.trace.upload"       // route name for a JSON trace upload
 	TracesRoute           = "traceapp.traces"             // route name for traces page
 )
 
@@ -31,6 +32,7 @@ func NewRouter(base *mux.Router) *Router {
 	base.Path("/traces/{Trace}").Methods("GET").Name(TraceRoute)
 	base.Path("/traces/{Trace}/profile").Methods("GET").Name(TraceProfileRoute)
 	base.Path("/traces/{Trace}/{Span}/profile").Methods("GET").Name(TraceSpanProfileRoute)
+	base.Path("/traces/upload").Methods("POST").Name(TraceUploadRoute)
 	base.Path("/traces/{Trace}/{Span}").Methods("GET").Name(TraceSpanRoute)
 	base.Path("/traces").Methods("GET").Name(TracesRoute)
 	return &Router{base}
