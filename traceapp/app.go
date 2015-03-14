@@ -12,7 +12,10 @@
 package traceapp
 
 import (
+	"encoding/json"
+	"fmt"
 	htmpl "html/template"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -49,6 +52,7 @@ func New(r *Router) *App {
 	r.r.Get(TraceSpanRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TraceProfileRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TraceSpanProfileRoute).Handler(handlerFunc(app.serveTrace))
+	r.r.Get(TraceUploadRoute).Handler(handlerFunc(app.serveTraceUpload))
 	r.r.Get(TracesRoute).Handler(handlerFunc(app.serveTraces))
 
 	return app
@@ -144,4 +148,33 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 	}{
 		Traces: traces,
 	})
+}
+
+func (a *App) serveTraceUpload(w http.ResponseWriter, r *http.Request) error {
+	// Read the uploaded JSON trace data.
+	defer r.Body.Close()
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	// Unmarshal the trace.
+	var trace *appdash.Trace
+	err = json.Unmarshal(data, &trace)
+	if err != nil {
+		return err
+	}
+
+	// Ensure the trace is not a previously uploaded one, or a colliding one (both
+	// cases would be very undesirable as they would add data to existing traces).
+	// We outright reject these cases, informing the user of their mistake.
+	_, err = a.Store.Trace(trace.Span.ID.Trace)
+	if err != appdash.ErrTraceNotFound {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "cannot upload trace (is a duplicate)")
+		return nil
+	}
+
+	// At this point we're all good to store the uploaded trace for later viewing.
+	return collectTrace(a.Store, trace)
 }
