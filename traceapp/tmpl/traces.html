@@ -69,46 +69,48 @@
 
 <!-- Bindings for the import-json menu -->
 <script type="text/javascript">
-  // Build a toggle function:
-  var menuVisible = false;
-  var toggleVisible = function(e) {
-    if(menuVisible) {
-      $("#import-json-menu").slideUp();
-      $("#import-json").fadeIn();
-    } else {
-      $("#import-json-menu").slideDown(function() {
-        $("#import-json-trace").focus();
-      });
-      $("#import-json").fadeOut();
-    }
-    menuVisible = !menuVisible;
-    e.preventDefault();
-  }
-
-  // When user clicks the "Import JSON" or "Cancel" buttons, toggle the menu
-  // visibility. Cancel as the toggle function works because it can only be
-  // clicked when the menu is visible.
-  $("#import-json").click(toggleVisible);
-  $("#import-json-cancel").click(toggleVisible);
-
-  // Upon completion of the import form, we POST the JSON trace data up to
-  // the "/traces/upload" URL and reload the page to display the new trace.
-  $("#import-json-complete").click(function() {
-    // Trim whitespace to ensure the user pasted something (plus, the server
-    // doesn't care about whitespace).
-    var data = $("#import-json-trace").val().trim();
-    if(data.length == 0) {
-      alert("Please input a valid JSON Trace!");
-      return;
+  (function() {
+    // Build a toggle function:
+    var menuVisible = false;
+    var toggleVisible = function(e) {
+      if(menuVisible) {
+        $("#import-json-menu").slideUp();
+        $("#import-json").fadeIn();
+      } else {
+        $("#import-json-menu").slideDown(function() {
+          $("#import-json-trace").focus();
+        });
+        $("#import-json").fadeOut();
+      }
+      menuVisible = !menuVisible;
+      e.preventDefault();
     }
 
-    // Upload the trace, refreshing page upon completion.
-    $.post("/traces/upload", data)
-      .done(function() { location.reload() })
-      .fail(function(xhr, textStatus, errorThrown) {
-        alert("error: " + xhr.responseText);
-      })
-  });
+    // When user clicks the "Import JSON" or "Cancel" buttons, toggle the menu
+    // visibility. Cancel as the toggle function works because it can only be
+    // clicked when the menu is visible.
+    $("#import-json").click(toggleVisible);
+    $("#import-json-cancel").click(toggleVisible);
+
+    // Upon completion of the import form, we POST the JSON trace data up to
+    // the "/traces/upload" URL and reload the page to display the new trace.
+    $("#import-json-complete").click(function() {
+      // Trim whitespace to ensure the user pasted something (plus, the server
+      // doesn't care about whitespace).
+      var data = $("#import-json-trace").val().trim();
+      if(data.length == 0) {
+        alert("Please input a valid JSON Trace!");
+        return;
+      }
+
+      // Upload the trace, refreshing page upon completion.
+      $.post("/traces/upload", data)
+        .done(function() { location.reload() })
+        .fail(function(xhr, textStatus, errorThrown) {
+          alert("error: " + xhr.responseText);
+        })
+    });
+  })();
 </script>
 
 {{end}}
