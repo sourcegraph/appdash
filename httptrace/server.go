@@ -40,12 +40,12 @@ func responseInfo(r *http.Response) ResponseInfo {
 
 // ServerEvent records an HTTP server request handling event.
 type ServerEvent struct {
-	Request    RequestInfo
-	Response   ResponseInfo
-	Route      string
-	User       string
-	ServerRecv time.Time
-	ServerSend time.Time
+	Request    RequestInfo  `trace:"Server.Request"`
+	Response   ResponseInfo `trace:"Server.Response"`
+	Route      string       `trace:"Server.Route"`
+	User       string       `trace:"Server.User"`
+	ServerRecv time.Time    `trace:"Server.Recv"`
+	ServerSend time.Time    `trace:"Server.Send"`
 }
 
 // Schema returns the constant "HTTPServer".
@@ -53,7 +53,7 @@ func (ServerEvent) Schema() string { return "HTTPServer" }
 
 // Important implements the appdash ImportantEvent.
 func (ServerEvent) Important() []string {
-	return []string{"Response.StatusCode"}
+	return []string{"Server.Response.StatusCode"}
 }
 
 // Start implements the appdash TimespanEvent interface.

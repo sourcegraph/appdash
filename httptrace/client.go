@@ -49,10 +49,10 @@ func requestInfo(r *http.Request) RequestInfo {
 
 // ClientEvent records an HTTP client request event.
 type ClientEvent struct {
-	Request    RequestInfo
-	Response   ResponseInfo
-	ClientSend time.Time
-	ClientRecv time.Time
+	Request    RequestInfo  `trace:"Client.Request"`
+	Response   ResponseInfo `trace:"Client.Response"`
+	ClientSend time.Time    `trace:"Client.Send"`
+	ClientRecv time.Time    `trace:"Client.Recv"`
 }
 
 // Schema returns the constant "HTTPClient".
@@ -61,9 +61,9 @@ func (ClientEvent) Schema() string { return "HTTPClient" }
 // Important implements the appdash ImportantEvent.
 func (ClientEvent) Important() []string {
 	return []string{
-		"Request.Headers.If-Modified-Since",
-		"Request.Headers.If-None-Match",
-		"Response.StatusCode",
+		"Client.Request.Headers.If-Modified-Since",
+		"Client.Request.Headers.If-None-Match",
+		"Client.Response.StatusCode",
 	}
 }
 
