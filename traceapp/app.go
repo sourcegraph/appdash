@@ -13,7 +13,6 @@ package traceapp
 
 import (
 	"encoding/json"
-	"fmt"
 	htmpl "html/template"
 	"io/ioutil"
 	"net/http"
@@ -159,22 +158,25 @@ func (a *App) serveTraceUpload(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Unmarshal the trace.
-	var trace *appdash.Trace
-	err = json.Unmarshal(data, &trace)
+	var traces []*appdash.Trace
+	err = json.Unmarshal(data, &traces)
 	if err != nil {
 		return err
 	}
 
-	// Ensure the trace is not a previously uploaded one, or a colliding one (both
-	// cases would be very undesirable as they would add data to existing traces).
-	// We outright reject these cases, informing the user of their mistake.
-	_, err = a.Store.Trace(trace.Span.ID.Trace)
-	if err != appdash.ErrTraceNotFound {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "cannot upload trace (is a duplicate)")
-		return nil
-	}
+	// Collect the unmarshaled traces, ignoring any previously existing ones (i.e.
+	// ones that would collide / be merged together).
+	for _, trace := range traces {
+		_, err = a.Store.Trace(trace.Span.ID.Trace)
+		if err != appdash.ErrTraceNotFound {
+			// The trace collides with an existing trace, ignore it.
+			continue
+		}
 
-	// At this point we're all good to store the uploaded trace for later viewing.
-	return collectTrace(a.Store, trace)
+		// Collect the trace (store it for later viewing).
+		if err = collectTrace(a.Store, trace); err != nil {
+			return err
+		}
+	}
+	return nil
 }

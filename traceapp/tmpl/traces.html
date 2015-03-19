@@ -4,10 +4,8 @@
 
 <!-- Styling for the import-json button & menu -->
 <style>
-  #import-json {
-    float: right;
-    position: relative;
-    top: 20px;
+  #top-right-btns {
+    margin-top: 25px;
   }
   #import-json-menu {
     display: none;
@@ -15,10 +13,37 @@
   #import-json-menu>span {
     margin-left: auto;
   }
+  // Offset for the checkbox because it's not actually vertically aligned with
+  // the text.
+  .trace-checkbox {
+    // This doesn't fix the issue:
+    //vertical-align: middle;
+    position: relative;
+    top: 2px;
+  }
 </style>
 
-<!-- import-json button & page title -->
-<button class="btn btn-default" type="button" id="import-json">Import JSON</button>
+<!-- Top-Right Menu -->
+<div class="btn-group pull-right" role="group" aria-label="..." id="top-right-btns">
+  <!-- Import JSON button -->
+  <button class="btn btn-default" type="button" id="import-json"
+    title="import JSON traces directly into Appdash">Import JSON</button>
+
+  <!-- Traces options menu -->
+  <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false" title="view options for multiple selected traces">
+    Traces <span class="caret"></span>
+  </button>
+  <ul class="dropdown-menu" role="menu">
+    <li><a href="#" id="toggle-selection" title="select/deselect all traces">Toggle Selection</a></li>
+    <li><a id="export-to-json" title="copy the selected traces to the clipboard as JSON data">Export Selected</a></li>
+
+    <!-- TODO(slimsag): implement aggregate view
+    <li><a href="#" id="aggregate-view" title="view the aggregated data of the traces">Aggregate View</a></li>
+    -->
+  </ul>
+</div>
+
+<!-- page title -->
 <h1>Traces</h1>
 
 <!-- import-json menu -->
@@ -39,9 +64,11 @@
   <hr/>
 </div>
 
-<ul>
+<ul class="list-unstyled">
   {{range .Traces}}
   <li>
+    <input type="checkbox" class="trace-checkbox" checked="yes"
+    data-json-trace="{{.String}}">
     <a href="{{urlToTrace .Span.ID.Trace}}">{{.Span.ID.Trace}}</a>
 
     <ul class="traces">
@@ -67,8 +94,8 @@
   {{end}}
 </ul>
 
-<!-- Bindings for the import-json menu -->
 <script type="text/javascript">
+  // Bindings for the import-json menu.
   (function() {
     // Build a toggle function:
     var menuVisible = false;
@@ -109,6 +136,42 @@
         .fail(function(xhr, textStatus, errorThrown) {
           alert("error: " + xhr.responseText);
         })
+    });
+  })();
+
+  // Bindings for the traces options menu.
+  (function() {
+    // selected returns an array of the parsed JSON trace data for each selected
+    // trace.
+    var selected = function() {
+      var traces = [];
+      $(".trace-checkbox").each(function(i, e) {
+        if($(this).prop("checked")) {
+          var j = $(this).attr("data-json-trace");
+          traces.push($.parseJSON(j));
+        }
+      });
+      return traces;
+    }
+
+    // Export Selected button.
+    var exportToJSON = new ZeroClipboard($("#export-to-json"));
+    exportToJSON.on("copy", function(e) {
+      var sel = selected();
+      if(sel.length == 0) {
+        return;
+      }
+      // Note: 2 is the indention level.
+      exportToJSON.setText(JSON.stringify(sel, null, 2));
+      alert(sel.length + " JSON traces copied to clipboard.")
+    });
+
+    // Toggle Selection button.
+    var checked = true;
+    $("#toggle-selection").click(function(e) {
+      e.preventDefault();
+      checked = !checked;
+      $(".trace-checkbox").prop("checked", checked);
     });
   })();
 </script>

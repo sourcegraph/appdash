@@ -4,7 +4,14 @@
 <h1>Trace {{.Trace.ID.Trace}}
   {{if not .Trace.ID.Parent}}
     <span style="font-size: 12px; vertical-align: middle;">
-      (<a id="copy-json" data-clipboard-text="{{.Trace.String}}">Copy as JSON</a>)
+      <!--
+        Note the [] brackets around the trace JSON string. We add these as we
+        support exporting/importing multiple traces as a json array type. The
+        Trace.String method just gives us a single JSON-encoded Trace object,
+        but using arrays across the entire system simplifies the encoding and
+        decoding processes slightly.
+      -->
+      (<a id="copy-json" data-clipboard-text="[{{.Trace.String}}]">Copy as JSON</a>)
     </span>
     {{end}}
 </h1>
