@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -140,6 +141,11 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+
+	// Sort the traces by ID to ensure that the display order doesn't change upon
+	// multiple page reloads if Queryer.Traces is e.g. backed by a map (which has
+	// a random iteration order).
+	sort.Sort(tracesByID(traces))
 
 	return a.renderTemplate(w, r, "traces.html", http.StatusOK, &struct {
 		TemplateCommon

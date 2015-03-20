@@ -21,3 +21,11 @@ func collectTrace(c appdash.Collector, t *appdash.Trace) error {
 	}
 	return nil
 }
+
+type tracesByID []*appdash.Trace
+
+func (t tracesByID) Len() int      { return len(t) }
+func (t tracesByID) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t tracesByID) Less(i, j int) bool {
+	return t[i].Span.ID.Trace.String() < t[j].Span.ID.Trace.String()
+}
