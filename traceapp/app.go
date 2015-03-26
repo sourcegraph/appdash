@@ -21,9 +21,11 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/mux"
 
 	"sourcegraph.com/sourcegraph/appdash"
+	static "sourcegraph.com/sourcegraph/appdash-data"
 )
 
 // App is an HTTP application handler that also exposes methods for
@@ -55,6 +57,12 @@ func New(r *Router) *App {
 	r.r.Get(TraceUploadRoute).Handler(handlerFunc(app.serveTraceUpload))
 	r.r.Get(TracesRoute).Handler(handlerFunc(app.serveTraces))
 
+	// Static file serving.
+	r.r.Get(StaticRoute).Handler(http.StripPrefix("/static/", http.FileServer(&assetfs.AssetFS{
+		Asset:    static.Asset,
+		AssetDir: static.AssetDir,
+		Prefix:   "",
+	})))
 	return app
 }
 
