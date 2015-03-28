@@ -9,7 +9,7 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
-// spanMap maintains a  map of connection we have seen, and the
+// spanMap maintains a map of connection we have seen, and the
 // recorder being used to track events on that connection
 var spanMap *connSpanMap
 
@@ -102,13 +102,13 @@ type ConnEvent struct {
 // Schema returns the constant "ConnOpen".
 func (ConnEvent) Schema() string { return "ConnOpen" }
 
-// Important implements the appdash ImportantEvent.
+// Important implements the appdash.ImportantEvent.
 func (ConnEvent) Important() []string {
 	return []string{"Opened", "Connected"}
 }
 
-// Start implements the appdash TimespanEvent interface.
+// Start implements the appdash.TimespanEvent interface.
 func (e ConnEvent) Start() time.Time { return e.Opened }
 
-// End implements the appdash TimespanEvent interface.
+// End implements the appdash.TimespanEvent interface.
 func (e ConnEvent) End() time.Time { return e.Connected }
