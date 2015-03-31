@@ -11,6 +11,7 @@ import (
 // Traceapp's route names.
 const (
 	RootRoute             = "traceapp.root"               // route name for root
+	StaticRoute           = "traceapp.static"             // route name for static data files
 	TraceRoute            = "traceapp.trace"              // route name for a single trace page
 	TraceSpanRoute        = "traceapp.trace.span"         // route name for a single trace sub-span page
 	TraceProfileRoute     = "traceapp.trace.profile"      // route name for a JSON trace profile
@@ -29,6 +30,7 @@ func NewRouter(base *mux.Router) *Router {
 		base = mux.NewRouter()
 	}
 	base.Path("/").Methods("GET").Name(RootRoute)
+	base.PathPrefix("/static/").Methods("GET").Name(StaticRoute)
 	base.Path("/traces/{Trace}").Methods("GET").Name(TraceRoute)
 	base.Path("/traces/{Trace}/profile").Methods("GET").Name(TraceProfileRoute)
 	base.Path("/traces/{Trace}/{Span}/profile").Methods("GET").Name(TraceSpanProfileRoute)
