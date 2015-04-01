@@ -13,6 +13,7 @@ package traceapp
 
 import (
 	"encoding/json"
+	"errors"
 	htmpl "html/template"
 	"io/ioutil"
 	"net/http"
@@ -82,16 +83,11 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 
 	traceID, err := appdash.ParseID(v["Trace"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}
 
 	trace, err := a.Store.Trace(traceID)
 	if err != nil {
-		if err == appdash.ErrTraceNotFound {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return nil
-		}
 		return err
 	}
 
@@ -99,13 +95,11 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 	if spanIDStr := v["Span"]; spanIDStr != "" {
 		spanID, err := appdash.ParseID(spanIDStr)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
 			return err
 		}
 		trace = trace.FindSpan(spanID)
 		if trace == nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return nil
+			return errors.New("could not find the specified trace span")
 		}
 	}
 

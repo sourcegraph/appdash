@@ -138,14 +138,17 @@
 
     <script>
       (function() {
+        // Fade the footer in initially.
+        $(".footer p").hide().fadeIn();
+
         var hints = [
           'Appdash provides a Go HTTP middleware in the <a target="_blank" href="https://godoc.org/sourcegraph.com/sourcegraph/appdash/httptrace">appdash/httptrace</a> package!',
           'It can be used from <a target="_blank" href="https://sourcegraph.com/sourcegraph.com/sourcegraph/appdash@master/.tree/python">within Python applications</a> too! Awesome!',
-          'Hint: Click the <u>Copy as JSON</strong> button to export a trace as JSON and share it with your friends!',
+          'Hint: Click the <strong>Copy as JSON</strong> button to export a trace as JSON and share it with your friends!',
           'Hint: The <strong>Verbose Data View</strong> tab shows all of the data associated with the current span.',
           'Hint: The <strong>Profile View</strong> tab lets you see a trace just like in a profiler!',
           'Hint: Click on any span (the colored rectangles) to narrow in on it and see its meta-data!',
-          'Hint: On the <strong>Traces<strong> page you can select and export multiple traces as JSON!',
+          'Hint: On the <strong>Traces</strong> page you can select and export multiple traces as JSON!',
           'Hint: Import a JSON trace from another Appdash instance by clicking <strong>Import JSON</strong> button on the <strong>Traces</strong> page!'
         ];
 
