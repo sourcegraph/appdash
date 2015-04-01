@@ -3,23 +3,28 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"sourcegraph.com/sourcegraph/appdash"
 	"sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
 
+func init() {
+	rand.Seed(time.Now().Unix())
+}
+
 func sampleData(c appdash.Collector) error {
 	const (
-		numTraces        = 5
+		numTraces        = 60
 		numSpansPerTrace = 7
 	)
 	log.Printf("Adding sample data (%d traces with %d spans each)", numTraces, numSpansPerTrace)
 	for i := appdash.ID(1); i <= numTraces; i++ {
 		traceID := appdash.NewRootSpanID()
 		traceRec := appdash.NewRecorder(traceID, c)
-		traceRec.Name("Request")
-		traceRec.Event(fakeEvent("root", 0))
+		traceRec.Name(fakeHosts[rand.Intn(len(fakeHosts))])
+		traceRec.Event(fakeEvent())
 
 		lastSpanID := traceID
 		for j := appdash.ID(1); j < numSpansPerTrace; j++ {
@@ -36,7 +41,7 @@ func sampleData(c appdash.Collector) error {
 			}
 
 			// Create a fake SQL event, subtracting one so we start at zero.
-			rec.Event(fakeEvent("children", int(j-1)))
+			rec.Event(fakeEvent())
 
 			// Check for any recorder errors.
 			if errs := rec.Errors(); len(errs) > 0 {
@@ -51,18 +56,14 @@ func sampleData(c appdash.Collector) error {
 
 var initTime = time.Now()
 
-// fakeEvent returns a SQLEvent with fake send and recieve times from the
-// fakeTimes map.
-func fakeEvent(name string, i int) *sqltrace.SQLEvent {
-	// Mod by the length of the slice to avoid index out of bounds when
-	// sampleData.numSpansPerTrace > len(t).
-	t := fakeTimes[name]
-	i = i % len(t)
+// fakeEvent returns a SQLEvent with random send and recieve times.
+func fakeEvent() *sqltrace.SQLEvent {
+	send := time.Now().Add(-time.Duration(rand.Intn(30000)) * time.Millisecond)
 	return &sqltrace.SQLEvent{
-		ClientSend: initTime.Add(t[i][0] * time.Millisecond),
-		ClientRecv: initTime.Add(t[i][1] * time.Millisecond),
+		ClientSend: send,
+		ClientRecv: send.Add(time.Duration(rand.Intn(30000)) * time.Millisecond),
 		SQL:        "SELECT * FROM table_name;",
-		Tag:        fmt.Sprintf("fakeTag%d", i),
+		Tag:        fmt.Sprintf("fakeTag%d", rand.Intn(10)),
 	}
 }
 
@@ -89,16 +90,25 @@ var fakeNames = []string{
 	"Grisaso",
 }
 
-// fakeTimes is a map of start and end times in milliseconds.
-var fakeTimes = map[string][][2]time.Duration{
-	"root": [][2]time.Duration{{5, 998}},
-	"children": [][2]time.Duration{
-		{11, 90},
-		{92, 150},
-		{154, 459},
-		{462, 730},
-		{734, 826},
-		{823, 975},
-		{983, 995},
-	},
+var fakeHosts = []string{
+	"api.phafsea.org",
+	"web.kraesey.net",
+	"www3.bleland.com",
+	"mun.moonuiburg",
+	"zri.ozruamwe.ll",
+	"e.rento",
+	"go.na",
+	"fre.nce",
+	"hiu.wront",
+	"shu.plin:9090",
+	"luoron.net",
+	"api.eproling.org",
+	"iw.ruuh.ville",
+	"riphero.ugh",
+	"sek.hun.sea",
+	"api.ye.ry",
+	"fia.com",
+	"jouver.io",
+	"strayolis.io",
+	"grisaso.io",
 }

@@ -27,6 +27,7 @@ var templates = [][]string{
 	{"root.html", "layout.html"},
 	{"trace.html", "layout.html"},
 	{"traces.html", "layout.html"},
+	{"aggregate.html", "layout.html"},
 }
 
 // TemplateCommon is data that is passed to (and available to) all templates.
