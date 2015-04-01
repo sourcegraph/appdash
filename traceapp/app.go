@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/elazarl/go-bindata-assetfs"
@@ -57,6 +58,7 @@ func New(r *Router) *App {
 	r.r.Get(TraceSpanProfileRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TraceUploadRoute).Handler(handlerFunc(app.serveTraceUpload))
 	r.r.Get(TracesRoute).Handler(handlerFunc(app.serveTraces))
+	r.r.Get(AggregateRoute).Handler(handlerFunc(app.serveAggregate))
 
 	// Static file serving.
 	r.r.Get(StaticRoute).Handler(http.StripPrefix("/static/", http.FileServer(&assetfs.AssetFS{
@@ -64,6 +66,7 @@ func New(r *Router) *App {
 		AssetDir: static.AssetDir,
 		Prefix:   "",
 	})))
+
 	return app
 }
 
@@ -154,6 +157,47 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 		Traces []*appdash.Trace
 	}{
 		Traces: traces,
+	})
+}
+
+func (a *App) serveAggregate(w http.ResponseWriter, r *http.Request) error {
+	// By default we display all traces.
+	traces, err := a.Queryer.Traces()
+	if err != nil {
+		return err
+	}
+
+	q := r.URL.Query()
+
+	// If they specified a comma-separated list of specific trace IDs that they
+	// are interested in, then we only show those.
+	selection := q.Get("selection")
+	if len(selection) > 0 {
+		var selected []*appdash.Trace
+		for _, idStr := range strings.Split(selection, ",") {
+			id, err := appdash.ParseID(idStr)
+			if err != nil {
+				return err
+			}
+			for _, t := range traces {
+				if t.Span.ID.Trace == id {
+					selected = append(selected, t)
+				}
+			}
+		}
+		traces = selected
+	}
+
+	// Perform the aggregation and render the data.
+	aggregated, err := a.aggregate(traces)
+	if err != nil {
+		return err
+	}
+	return a.renderTemplate(w, r, "aggregate.html", http.StatusOK, &struct {
+		TemplateCommon
+		Aggregated []*aggItem
+	}{
+		Aggregated: aggregated,
 	})
 }
 

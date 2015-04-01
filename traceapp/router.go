@@ -18,6 +18,7 @@ const (
 	TraceSpanProfileRoute = "traceapp.trace.span.profile" // route name for a JSON trace sub-span profile
 	TraceUploadRoute      = "traceapp.trace.upload"       // route name for a JSON trace upload
 	TracesRoute           = "traceapp.traces"             // route name for traces page
+	AggregateRoute        = "traceapp.aggregate"          // route name for aggregate trace view
 )
 
 // Router is a URL router for traceapp applications. It should be created via
@@ -37,6 +38,7 @@ func NewRouter(base *mux.Router) *Router {
 	base.Path("/traces/upload").Methods("POST").Name(TraceUploadRoute)
 	base.Path("/traces/{Trace}/{Span}").Methods("GET").Name(TraceSpanRoute)
 	base.Path("/traces").Methods("GET").Name(TracesRoute)
+	base.Path("/aggregate").Methods("GET").Name(AggregateRoute)
 	return &Router{base}
 }
 

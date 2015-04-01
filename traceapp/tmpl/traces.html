@@ -36,10 +36,7 @@
   <ul class="dropdown-menu" role="menu">
     <li><a href="#" id="toggle-selection" title="select/deselect all traces">Toggle Selection</a></li>
     <li><a id="export-to-json" title="copy the selected traces to the clipboard as JSON data">Export Selected</a></li>
-
-    <!-- TODO(slimsag): implement aggregate view
-    <li><a href="#" id="aggregate-view" title="view the aggregated data of the traces">Aggregate View</a></li>
-    -->
+    <li><a href="#" id="aggregate-view" title="view the aggregated data of the selected traces">Aggregate View</a></li>
   </ul>
 </div>
 
@@ -136,8 +133,8 @@
         .fail(function(xhr, textStatus, errorThrown) {
           alert("error: " + xhr.responseText);
         })
-    });
-  })();
+      });
+    })();
 
   // Bindings for the traces options menu.
   (function() {
@@ -172,6 +169,28 @@
       e.preventDefault();
       checked = !checked;
       $(".trace-checkbox").prop("checked", checked);
+    });
+
+    // Aggregate View button.
+    $("#aggregate-view").click(function(e) {
+      e.preventDefault();
+      var sel = selected();
+
+      // If we've selected everything, avoid sending a very long URL query
+      // parameter by just going straight to /aggregate which, by default, shows
+      // aggregated data for all traces.
+      if(sel.length == $(".trace-checkbox").length) {
+        window.location.href = {{.BaseURL.String}} + "aggregate";
+        return;
+      }
+
+      // Send the preceding POST request with the IDs we are interested in
+      // viewing, and then GET the /aggregate page.
+      var ids = [];
+      $.each(sel, function(i, trace) {
+        ids.push(trace.ID.Trace);
+      });
+      window.location.href = {{.BaseURL.String}} + "aggregate?selection=" + ids.join();
     });
   })();
 </script>

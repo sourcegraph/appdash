@@ -23,6 +23,24 @@ type asset struct {
 	info  os.FileInfo
 }
 
+// aggregate_html reads file data from disk. It returns an error on failure.
+func aggregate_html() (*asset, error) {
+	path := filepath.Join(rootDir, "aggregate.html")
+	name := "aggregate.html"
+	bytes, err := bindata_read(path, name)
+	if err != nil {
+		return nil, err
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		err = fmt.Errorf("Error reading asset info %s at %s: %v", name, path, err)
+	}
+
+	a := &asset{bytes: bytes, info: fi}
+	return a, err
+}
+
 // layout_html reads file data from disk. It returns an error on failure.
 func layout_html() (*asset, error) {
 	path := filepath.Join(rootDir, "layout.html")
@@ -147,10 +165,11 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"layout.html": layout_html,
-	"root.html":   root_html,
-	"trace.html":  trace_html,
-	"traces.html": traces_html,
+	"aggregate.html": aggregate_html,
+	"layout.html":    layout_html,
+	"root.html":      root_html,
+	"trace.html":     trace_html,
+	"traces.html":    traces_html,
 }
 
 // AssetDir returns the file names below a certain
@@ -194,10 +213,11 @@ type _bintree_t struct {
 }
 
 var _bintree = &_bintree_t{nil, map[string]*_bintree_t{
-	"layout.html": &_bintree_t{layout_html, map[string]*_bintree_t{}},
-	"root.html":   &_bintree_t{root_html, map[string]*_bintree_t{}},
-	"trace.html":  &_bintree_t{trace_html, map[string]*_bintree_t{}},
-	"traces.html": &_bintree_t{traces_html, map[string]*_bintree_t{}},
+	"aggregate.html": &_bintree_t{aggregate_html, map[string]*_bintree_t{}},
+	"layout.html":    &_bintree_t{layout_html, map[string]*_bintree_t{}},
+	"root.html":      &_bintree_t{root_html, map[string]*_bintree_t{}},
+	"trace.html":     &_bintree_t{trace_html, map[string]*_bintree_t{}},
+	"traces.html":    &_bintree_t{traces_html, map[string]*_bintree_t{}},
 }}
 
 // Restore an asset under the given directory

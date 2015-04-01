@@ -1,0 +1,63 @@
+
+{{define "Title"}}Aggregate View - appdash{{end}}
+{{define "Main"}}
+<h1>Aggregated View</h1>
+
+<style type="text/css">
+  html,body {
+    /* Disable vertical scrollbar due to canvas being very long. */
+    overflow-y: hidden;
+  }
+  #pieChart {
+    width: 800px;
+    height: 600px;
+    margin-left: auto;
+    margin-right: auto;
+
+    /*
+      Canvas is very long, so we offset it by 100px. We could hange the canvas
+      size but it would effectively crop out some of the labels extending outward
+      from the chart
+    */
+    position: relative;
+    top: -100px;
+  }
+</style>
+
+<div id="pieChart"></div>
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.4/d3.min.js"></script>
+<script src="//rawgit.com/benkeen/d3pie/master/d3pie/d3pie.min.js"></script>
+<script type="text/javascript">
+  $(window).load(function() {
+    // Grab the aggregated data from the template parameter, or if there is
+		// none, fake a single data element for the pie chart to still render.
+    var data = {{.Aggregated}};
+    if(data.length == 0) {
+      data = [{"label": "no traces to aggregate", "value": 1}];
+    }
+
+		// Create the pie chart.
+    var pie = new d3pie("pieChart", {
+      "size": {
+        "canvasHeight": 800,
+        "canvasWidth": 800,
+        "pieInnerRadius": "80%",
+      },
+      "tooltips": {
+        "enabled": true,
+        "type": "placeholder",
+        "string": "{label} - {value}ms - {percentage}%",
+        "styles": {
+          "backgroundOpacity": 0.75
+        }
+      },
+      "data": {
+        "sortOrder": "value-desc",
+        "content": data
+      }
+    });
+  });
+</script>
+
+{{end}}
