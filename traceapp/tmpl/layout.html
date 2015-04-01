@@ -138,6 +138,9 @@
 
     <script>
       (function() {
+        // Fade the footer in initially.
+        $(".footer p").hide().fadeIn();
+
         var hints = [
           'Appdash provides a Go HTTP middleware in the <a target="_blank" href="https://godoc.org/sourcegraph.com/sourcegraph/appdash/httptrace">appdash/httptrace</a> package!',
           'It can be used from <a target="_blank" href="https://sourcegraph.com/sourcegraph.com/sourcegraph/appdash@master/.tree/python">within Python applications</a> too! Awesome!',
