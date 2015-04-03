@@ -14,25 +14,55 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func sampleData(c appdash.Collector) error {
-	const (
-		numTraces        = 60
-		numSpansPerTrace = 7
+// randomSplit splits the given value randomly into N segments. The approach
+// used is described at:
+//
+// http://stackoverflow.com/questions/22380890/generate-n-random-numbers-whose-sum-is-m-and-all-numbers-should-be-greater-than
+//
+func randomSplit(value, n int) []int {
+	var (
+		segments = make([]int, 0, n)
+		sum      int
 	)
-	log.Printf("Adding sample data (%d traces with %d spans each)", numTraces, numSpansPerTrace)
+	for i := 1; i < n; i++ {
+		s := rand.Intn(((value - sum) / (n - i)) + 1)
+		segments = append(segments, s)
+		sum += s
+	}
+	return append(segments, value-sum)
+}
+
+func sampleData(c appdash.Collector) error {
+	const numTraces = 60
+	log.Printf("Adding sample data (%d traces)", numTraces)
 	for i := appdash.ID(1); i <= numTraces; i++ {
 		traceID := appdash.NewRootSpanID()
 		traceRec := appdash.NewRecorder(traceID, c)
 		traceRec.Name(fakeHosts[rand.Intn(len(fakeHosts))])
-		traceRec.Event(fakeEvent())
+
+		// A random length for the trace.
+		length := time.Duration(rand.Intn(1000)) * time.Millisecond
+
+		startTime := time.Now().Add(-time.Duration(rand.Intn(100)) * time.Minute)
+		traceRec.Event(&sqltrace.SQLEvent{
+			ClientSend: startTime,
+			ClientRecv: startTime.Add(length),
+			SQL:        "SELECT * FROM table_name;",
+			Tag:        fmt.Sprintf("fakeTag%d", rand.Intn(10)),
+		})
+
+		// We'll split the trace into N (3-7) spans (i.e. "N operations") each with
+		// a random duration of time adding up to the length of the trace.
+		numSpans := rand.Intn(7-3) + 3
+		times := randomSplit(int(length/time.Millisecond), numSpans)
 
 		lastSpanID := traceID
-		for j := appdash.ID(1); j < numSpansPerTrace; j++ {
+		for j := 1; j <= numSpans; j++ {
 			// The parent span is the predecessor.
 			spanID := appdash.NewSpanID(lastSpanID)
 
 			rec := appdash.NewRecorder(spanID, c)
-			rec.Name(fakeNames[int(j+i)%len(fakeNames)])
+			rec.Name(fakeNames[(j+int(i))%len(fakeNames)])
 			if j%3 == 0 {
 				rec.Log("hello")
 			}
@@ -40,8 +70,17 @@ func sampleData(c appdash.Collector) error {
 				rec.Msg("hi")
 			}
 
-			// Create a fake SQL event, subtracting one so we start at zero.
-			rec.Event(fakeEvent())
+			// Generate a span event.
+			spanDuration := time.Duration(times[j-1]) * time.Millisecond
+			rec.Event(&sqltrace.SQLEvent{
+				ClientSend: startTime,
+				ClientRecv: startTime.Add(spanDuration),
+				SQL:        "SELECT * FROM table_name;",
+				Tag:        fmt.Sprintf("fakeTag%d", rand.Intn(10)),
+			})
+
+			// Shift the start time forward.
+			startTime = startTime.Add(spanDuration)
 
 			// Check for any recorder errors.
 			if errs := rec.Errors(); len(errs) > 0 {
@@ -52,19 +91,6 @@ func sampleData(c appdash.Collector) error {
 		}
 	}
 	return nil
-}
-
-var initTime = time.Now()
-
-// fakeEvent returns a SQLEvent with random send and recieve times.
-func fakeEvent() *sqltrace.SQLEvent {
-	send := time.Now().Add(-time.Duration(rand.Intn(30000)) * time.Millisecond)
-	return &sqltrace.SQLEvent{
-		ClientSend: send,
-		ClientRecv: send.Add(time.Duration(rand.Intn(30000)) * time.Millisecond),
-		SQL:        "SELECT * FROM table_name;",
-		Tag:        fmt.Sprintf("fakeTag%d", rand.Intn(10)),
-	}
 }
 
 var fakeNames = []string{

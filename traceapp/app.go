@@ -189,7 +189,7 @@ func (a *App) serveAggregate(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Perform the aggregation and render the data.
-	aggregated, err := a.aggregate(traces)
+	aggregated, err := a.aggregate(traces, parseAggMode(q.Get("view-mode")))
 	if err != nil {
 		return err
 	}
