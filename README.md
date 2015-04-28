@@ -22,7 +22,7 @@ are provided, and you can write your own.
 To install appdash, run:
 
 ```
-go get sourcegraph.com/sourcegraph/appdash/cmd/...
+go get -u sourcegraph.com/sourcegraph/appdash/cmd/...
 ```
 
 A standalone example using Negroni and Gorilla packages is available in the `examples/cmd/webapp` folder.
