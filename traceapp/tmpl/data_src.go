@@ -1,4 +1,4 @@
-// +build debug
+// +build dev
 
 package tmpl
 
@@ -27,7 +27,7 @@ type asset struct {
 
 // aggregate_html reads file data from disk. It returns an error on failure.
 func aggregate_html() (*asset, error) {
-	path := "/home/stephen/Desktop/godev/src/sourcegraph.com/sourcegraph/appdash/traceapp/tmpl/aggregate.html"
+	path := filepath.Join(rootDir, "aggregate.html")
 	name := "aggregate.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -45,7 +45,7 @@ func aggregate_html() (*asset, error) {
 
 // layout_html reads file data from disk. It returns an error on failure.
 func layout_html() (*asset, error) {
-	path := "/home/stephen/Desktop/godev/src/sourcegraph.com/sourcegraph/appdash/traceapp/tmpl/layout.html"
+	path := filepath.Join(rootDir, "layout.html")
 	name := "layout.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -63,7 +63,7 @@ func layout_html() (*asset, error) {
 
 // root_html reads file data from disk. It returns an error on failure.
 func root_html() (*asset, error) {
-	path := "/home/stephen/Desktop/godev/src/sourcegraph.com/sourcegraph/appdash/traceapp/tmpl/root.html"
+	path := filepath.Join(rootDir, "root.html")
 	name := "root.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -81,7 +81,7 @@ func root_html() (*asset, error) {
 
 // trace_html reads file data from disk. It returns an error on failure.
 func trace_html() (*asset, error) {
-	path := "/home/stephen/Desktop/godev/src/sourcegraph.com/sourcegraph/appdash/traceapp/tmpl/trace.html"
+	path := filepath.Join(rootDir, "trace.html")
 	name := "trace.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {
@@ -99,7 +99,7 @@ func trace_html() (*asset, error) {
 
 // traces_html reads file data from disk. It returns an error on failure.
 func traces_html() (*asset, error) {
-	path := "/home/stephen/Desktop/godev/src/sourcegraph.com/sourcegraph/appdash/traceapp/tmpl/traces.html"
+	path := filepath.Join(rootDir, "traces.html")
 	name := "traces.html"
 	bytes, err := bindata_read(path, name)
 	if err != nil {

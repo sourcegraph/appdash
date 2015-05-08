@@ -1,4 +1,4 @@
-// +build !debug
+// +build !dev
 
 package tmpl
 
@@ -78,7 +78,7 @@ func aggregate_html() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindata_file_info{name: "aggregate.html", size: 3419, mode: os.FileMode(436), modTime: time.Unix(1428709222, 0)}
+	info := bindata_file_info{name: "aggregate.html", size: 3419, mode: os.FileMode(436), modTime: time.Unix(1429660875, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -98,7 +98,7 @@ func layout_html() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindata_file_info{name: "layout.html", size: 7238, mode: os.FileMode(436), modTime: time.Unix(1427921746, 0)}
+	info := bindata_file_info{name: "layout.html", size: 7238, mode: os.FileMode(436), modTime: time.Unix(1429660875, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -118,7 +118,7 @@ func root_html() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindata_file_info{name: "root.html", size: 832, mode: os.FileMode(436), modTime: time.Unix(1428708883, 0)}
+	info := bindata_file_info{name: "root.html", size: 832, mode: os.FileMode(436), modTime: time.Unix(1429660875, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -138,7 +138,7 @@ func trace_html() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindata_file_info{name: "trace.html", size: 17467, mode: os.FileMode(436), modTime: time.Unix(1427840757, 0)}
+	info := bindata_file_info{name: "trace.html", size: 17467, mode: os.FileMode(436), modTime: time.Unix(1429660875, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -158,7 +158,7 @@ func traces_html() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindata_file_info{name: "traces.html", size: 6342, mode: os.FileMode(436), modTime: time.Unix(1427918345, 0)}
+	info := bindata_file_info{name: "traces.html", size: 6342, mode: os.FileMode(436), modTime: time.Unix(1429660875, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
