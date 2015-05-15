@@ -340,6 +340,44 @@ func TestRecentStore(t *testing.T) {
 	}
 }
 
+func TestLimitStore(t *testing.T) {
+	const age = time.Millisecond * 10
+
+	ms := NewMemoryStore()
+	rs := &storeT{t, &LimitStore{DeleteStore: ms, Max: 2}}
+
+	if traces, _ := ms.Traces(); len(traces) != 0 {
+		t.Errorf("got traces %v, want %d total", traces, 0)
+	}
+
+	rs.MustCollect(SpanID{1, 2, 3})
+
+	if traces, _ := ms.Traces(); len(traces) != 1 {
+		t.Errorf("got traces %v, want %d total", traces, 1)
+	}
+
+	rs.MustCollect(SpanID{2, 3, 4})
+
+	if traces, _ := ms.Traces(); len(traces) != 2 {
+		t.Errorf("got traces %v, want %d total", traces, 2)
+	}
+
+	rs.MustCollect(SpanID{3, 4, 5})
+
+	if traces, _ := ms.Traces(); len(traces) != 2 {
+		t.Errorf("got traces %v, want %d total", traces, 2)
+	}
+
+	traces, _ := ms.Traces()
+	want := []*Trace{
+		{Span: Span{ID: SpanID{3, 4, 5}}},
+		{Span: Span{ID: SpanID{2, 3, 4}}},
+	}
+	if !reflect.DeepEqual(traces, want) {
+		t.Errorf("traces differed\n\ngot traces\n%s\n\nwant traces\n%s", traces, want)
+	}
+}
+
 func compareTraces(a, b *Trace) (diff []string) {
 	var cmp func(parent ID, a, b *Trace)
 	cmp = func(parent ID, a, b *Trace) {
