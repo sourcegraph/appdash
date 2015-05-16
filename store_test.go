@@ -370,9 +370,10 @@ func TestLimitStore(t *testing.T) {
 
 	traces, _ := ms.Traces()
 	want := []*Trace{
-		{Span: Span{ID: SpanID{3, 4, 5}}},
 		{Span: Span{ID: SpanID{2, 3, 4}}},
+		{Span: Span{ID: SpanID{3, 4, 5}}},
 	}
+	sort.Sort(tracesByIDSpan(traces))
 	if !reflect.DeepEqual(traces, want) {
 		t.Errorf("traces differed\n\ngot traces\n%s\n\nwant traces\n%s", traces, want)
 	}
