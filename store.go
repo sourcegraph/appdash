@@ -379,3 +379,41 @@ func (rs *RecentStore) evictBefore(t time.Time) {
 		}
 	}()
 }
+
+// A LimitStore wraps another store and deletes the oldest trace when
+// the number of traces reaches the capacity (Max).
+type LimitStore struct {
+	// Max is the maximum number of traces that the store should keep.
+	Max int
+
+	// DeleteStore is the underlying store that spans are saved to and
+	// deleted from.
+	DeleteStore
+
+	mu            sync.Mutex
+	ring          []int64 // ring is a circular list of trace IDs in insertion order.
+	nextInsertIdx int     // nextInsertIdx is the ring index for the next insertion.
+
+}
+
+// Collect calls the underlying store's Collect, deleting the oldest
+// trace if the capacity has been reached.
+func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
+	ls.mu.Lock()
+	if ls.ring == nil {
+		ls.ring = make([]int64, ls.Max)
+	}
+	if nextInsert := ls.ring[ls.nextInsertIdx]; nextInsert != 0 {
+		// Store is at capacity (we know this because the next insert
+		// slot already contains trace); delete oldest.
+		if err := ls.DeleteStore.Delete(ID(ls.ring[ls.nextInsertIdx])); err != nil {
+			ls.mu.Unlock()
+			return err
+		}
+	}
+	ls.ring[ls.nextInsertIdx] = int64(id.Trace)
+	ls.nextInsertIdx = (ls.nextInsertIdx + 1) % ls.Max // increment & wrap
+	ls.mu.Unlock()
+
+	return ls.DeleteStore.Collect(id, anns...)
+}
