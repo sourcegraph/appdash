@@ -399,6 +399,9 @@ type LimitStore struct {
 // Collect calls the underlying store's Collect, deleting the oldest
 // trace if the capacity has been reached.
 func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
+	if ls.Max == 0 {
+		return nil
+	}
 	ls.mu.Lock()
 	if ls.ring == nil {
 		ls.ring = make([]int64, ls.Max)
