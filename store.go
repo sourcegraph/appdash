@@ -386,16 +386,9 @@ type LimitStore struct {
 	// Max is the maximum number of traces that the store should keep.
 	Max int
 
-	// count is the number of traces currently stored. It may never
-	// exceed Max.
-	count int
-
-	// DeleteStoer is the underlying store that spans are saved to and
+	// DeleteStore is the underlying store that spans are saved to and
 	// deleted from.
 	DeleteStore
-
-	// Debug is whether to log debug messages.
-	Debug bool
 
 	mu            sync.Mutex
 	ring          []int64 // ring is a circular list of trace IDs in insertion order.
@@ -414,6 +407,7 @@ func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
 		// Store is at capacity (we know this because the next insert
 		// slot already contains trace); delete oldest.
 		if err := ls.DeleteStore.Delete(ID(ls.ring[ls.nextInsertIdx])); err != nil {
+			ls.mu.Unlock()
 			return err
 		}
 	}
