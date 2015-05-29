@@ -28,6 +28,11 @@
   width: 0;
 }
 
+#dataTable {
+  position: relative;
+  top: -35px;
+}
+
 .timeline {
   text-align: center;
 }
@@ -54,6 +59,9 @@
   <table data-toggle="table" data-url="{{.DataURL}}" class="table table-condensed"
     data-sort-name="Average"
     data-query-params="queryParams"
+    data-search="true"
+    data-show-refresh="true"
+    data-show-columns="true"
     data-sort-order="desc">
   <thead>
     <tr>
