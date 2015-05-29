@@ -58,6 +58,8 @@ func New(r *Router) *App {
 	r.r.Get(TraceSpanProfileRoute).Handler(handlerFunc(app.serveTrace))
 	r.r.Get(TraceUploadRoute).Handler(handlerFunc(app.serveTraceUpload))
 	r.r.Get(TracesRoute).Handler(handlerFunc(app.serveTraces))
+	r.r.Get(DashboardRoute).Handler(handlerFunc(app.serveDashboard))
+	r.r.Get(DashboardDataRoute).Handler(handlerFunc(app.serveDashboardData))
 	r.r.Get(AggregateRoute).Handler(handlerFunc(app.serveAggregate))
 
 	// Static file serving.
@@ -147,6 +149,18 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// Parse the query for a comma-separated list of traces that we should only
+	// show (all others are hidden).
+	var showJust []appdash.ID
+	if show := r.URL.Query().Get("show"); len(show) > 0 {
+		for _, idStr := range strings.Split(show, ",") {
+			id, err := appdash.ParseID(idStr)
+			if err == nil {
+				showJust = append(showJust, id)
+			}
+		}
+	}
+
 	// Sort the traces by ID to ensure that the display order doesn't change upon
 	// multiple page reloads if Queryer.Traces is e.g. backed by a map (which has
 	// a random iteration order).
@@ -154,9 +168,28 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 
 	return a.renderTemplate(w, r, "traces.html", http.StatusOK, &struct {
 		TemplateCommon
-		Traces []*appdash.Trace
+		Traces  []*appdash.Trace
+		Visible func(*appdash.Trace) bool
 	}{
 		Traces: traces,
+		Visible: func(t *appdash.Trace) bool {
+			// Hide the traces that contain aggregate events (that's all they have, so
+			// they are not very useful to users).
+			if t.IsAggregate() {
+				return false
+			}
+
+			if len(showJust) > 0 {
+				// Showing just a few traces.
+				for _, id := range showJust {
+					if id == t.Span.ID.Trace {
+						return true
+					}
+				}
+				return false
+			}
+			return true
+		},
 	})
 }
 
