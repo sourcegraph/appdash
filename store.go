@@ -64,7 +64,11 @@ var _ interface {
 func (ms *MemoryStore) Collect(id SpanID, as ...Annotation) error {
 	ms.Lock()
 	defer ms.Unlock()
+	return ms.collectNoLock(id, as...)
+}
 
+// collectNoLock is the same as Collect, but it does not grab the lock.
+func (ms *MemoryStore) collectNoLock(id SpanID, as ...Annotation) error {
 	if ms.log {
 		log.Printf("Collect %v", id)
 	}
@@ -231,7 +235,11 @@ func (ms *MemoryStore) Traces() ([]*Trace, error) {
 func (ms *MemoryStore) Delete(traces ...ID) error {
 	ms.Lock()
 	defer ms.Unlock()
+	return ms.deleteNoLock(traces...)
+}
 
+// deleteNoLock is the same as Delete, but it doesn't grab the lock.
+func (ms *MemoryStore) deleteNoLock(traces ...ID) error {
 	for _, id := range traces {
 		delete(ms.trace, id)
 		delete(ms.span, id)
