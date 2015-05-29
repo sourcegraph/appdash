@@ -22,24 +22,34 @@ type ImportantEvent interface {
 
 // EventMarshaler is the interface implemented by an event that can
 // marshal a representation of itself into annotations.
-//
-// TODO(sqs): implement this in MarshalEvent
 type EventMarshaler interface {
-	MarshalEvent() ([]*Annotation, error)
+	// MarshalEvent should marshal this event itself into a set of annotations, or
+	// return an error.
+	MarshalEvent() (Annotations, error)
 }
 
 // EventUnmarshaler is the interface implemented by an event that can
 // unmarshal an annotation representation of itself.
-//
-// TODO(sqs): implement this in UnmarshalEvent
 type EventUnmarshaler interface {
-	UnmarshalEvent([]*Annotation) error
+	// UnmarshalEvent should unmarshal the given annotations into a event of the
+	// same type, or return an error.
+	UnmarshalEvent(Annotations) (Event, error)
 }
 
 const schemaPrefix = "_schema:"
 
 // MarshalEvent marshals an event into annotations.
 func MarshalEvent(e Event) (Annotations, error) {
+	// Handle event marshalers.
+	if v, ok := e.(EventMarshaler); ok {
+		as, err := v.MarshalEvent()
+		if err != nil {
+			return nil, err
+		}
+		as = append(as, Annotation{Key: schemaPrefix + e.Schema()})
+		return as, nil
+	}
+
 	var as Annotations
 	flattenValue("", reflect.ValueOf(e), func(k, v string) {
 		as = append(as, Annotation{Key: k, Value: []byte(v)})
@@ -72,6 +82,16 @@ func UnmarshalEvent(as Annotations, e Event) error {
 	}
 	if !schemaOK {
 		return &EventSchemaUnmarshalError{Found: aSchemas, Target: e.Schema()}
+	}
+
+	// Handle event unmarshalers.
+	if v, ok := e.(EventUnmarshaler); ok {
+		ev, err := v.UnmarshalEvent(as)
+		if err != nil {
+			return err
+		}
+		reflect.Indirect(reflect.ValueOf(e)).Set(reflect.ValueOf(ev))
+		return nil
 	}
 
 	unflattenValue("", reflect.ValueOf(&e), reflect.TypeOf(&e), mapToKVs(as.StringMap()))
