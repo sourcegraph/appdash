@@ -295,10 +295,25 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		}
 	}
 
+	// Prepare the aggregation event (before locking below).
+	ev := &AggregateEvent{
+		Name:  group.Name,
+		Times: group.Times,
+	}
+	for _, slowest := range group.Slowest {
+		if slowest.TraceID != 0 {
+			ev.Slowest = append(ev.Slowest, slowest.TraceID)
+		}
+	}
+	if as.Debug && len(ev.Slowest) == 0 {
+		log.Printf("AggregateStore: no slowest traces for group %q (consider increasing MaxRate)", group.Name)
+	}
+
 	// As we're updating the aggregation event, we go ahead and delete the old
 	// one now. We do this all under as.MemoryStore.Lock otherwise users (e.g. the
 	// web UI) can pull from as.MemoryStore when the trace has been deleted.
 	as.MemoryStore.Lock()
+	defer as.MemoryStore.Unlock()
 	if err := as.MemoryStore.deleteNoLock(group.Trace); err != nil {
 		return err
 	}
@@ -314,23 +329,9 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	if err := recEvent(spanName{Name: group.Name}); err != nil {
 		return err
 	}
-	ev := &AggregateEvent{
-		Name:  group.Name,
-		Times: group.Times,
-	}
-	for _, slowest := range group.Slowest {
-		if slowest.TraceID != 0 {
-			ev.Slowest = append(ev.Slowest, slowest.TraceID)
-		}
-	}
-	if as.Debug && len(ev.Slowest) == 0 {
-		log.Printf("AggregateStore: no slowest traces for group %q (consider increasing MaxRate)", group.Name)
-	}
 	if err := recEvent(ev); err != nil {
 		return err
 	}
-	as.MemoryStore.Unlock()
-
 	return nil
 }
 
