@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"math"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/cznic/mathutil"
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
@@ -33,10 +34,10 @@ func newDashboardRow(a appdash.AggregateEvent) dashboardRow {
 	}
 
 	// Calculate sum and mean (row.Average), while determining min/max.
-	var sum time.Duration
+	sum := big.NewInt(0)
 	for _, ts := range a.Times {
 		d := ts[1].Sub(ts[0])
-		sum += d
+		sum.Add(sum, big.NewInt(int64(d)))
 		if row.Min == 0 || d < row.Min {
 			row.Min = d
 		}
@@ -44,17 +45,19 @@ func newDashboardRow(a appdash.AggregateEvent) dashboardRow {
 			row.Max = d
 		}
 	}
-	row.Average = sum / time.Duration(len(a.Times))
+	avg := big.NewInt(0).Div(sum, big.NewInt(int64(len(a.Times))))
+	row.Average = time.Duration(avg.Int64())
 
 	// Calculate std. deviation.
-	var sqDiffSum time.Duration
+	sqDiffSum := big.NewInt(0)
 	for _, ts := range a.Times {
 		d := ts[1].Sub(ts[0])
-		diff := d - row.Average
-		sqDiffSum += diff * diff
+		diff := big.NewInt(0).Sub(big.NewInt(int64(d)), avg)
+		sqDiffSum.Add(sqDiffSum, diff.Mul(diff, diff))
 	}
-	row.StdDev = sqDiffSum / time.Duration(len(a.Times))
-	row.StdDev = time.Duration(math.Sqrt(float64(row.StdDev)))
+	stdDev := big.NewInt(0).Div(sqDiffSum, big.NewInt(int64(len(a.Times))))
+	stdDev = mathutil.SqrtBig(stdDev)
+	row.StdDev = time.Duration(stdDev.Int64())
 
 	// TODO(slimsag): if we can make the table display the data as formatted by
 	// Go (row.Average.String), we'll get much nicer display. But it means we'll
