@@ -45,6 +45,57 @@ func (t *Trace) TreeString() string {
 	return buf.String()
 }
 
+// IsAggregate tells if the trace contains any AggregateEvents (it is therefor
+// said to be a set of aggregated traces).
+func (t *Trace) IsAggregate() bool {
+	aggSchema := schemaPrefix + AggregateEvent{}.Schema()
+	var walk func(t *Trace) bool
+	walk = func(t *Trace) bool {
+		for _, ann := range t.Annotations {
+			if ann.Key == aggSchema {
+				return true
+			}
+		}
+		for _, sub := range t.Sub {
+			if walk(sub) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(t)
+}
+
+// Aggregated returns a slice of aggregate events found in this trace.
+func (t *Trace) Aggregated() ([]AggregateEvent, error) {
+	var (
+		agg  []AggregateEvent
+		walk func(t *Trace) error
+	)
+	walk = func(t *Trace) error {
+		var evs []Event
+		err := UnmarshalEvents(t.Annotations, &evs)
+		if err != nil {
+			return err
+		}
+		for _, ev := range evs {
+			if a, ok := ev.(AggregateEvent); ok {
+				agg = append(agg, a)
+			}
+		}
+		for _, sub := range t.Sub {
+			if err := walk(sub); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(t); err != nil {
+		return nil, err
+	}
+	return agg, nil
+}
+
 func (t *Trace) treeString(w io.Writer, depth int) {
 	const indent1 = "    "
 	indent := strings.Repeat(indent1, depth)

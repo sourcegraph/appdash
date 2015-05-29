@@ -63,31 +63,33 @@
 
 <ul class="list-unstyled">
   {{range .Traces}}
-  <li>
-    <input type="checkbox" class="trace-checkbox" checked="yes"
-    data-json-trace="{{.String}}">
-    <a href="{{urlToTrace .Span.ID.Trace}}">{{.Span.ID.Trace}}</a>
+    {{if (call $.Visible .)}}
+      <li>
+        <input type="checkbox" class="trace-checkbox" checked="yes"
+        data-json-trace="{{.String}}">
+        <a href="{{urlToTrace .Span.ID.Trace}}">{{.Span.ID.Trace}}</a>
 
-    <ul class="traces">
-      <li class="trace" id="span-{{.Span.ID.Span}}">
-        {{if .Name}}
-        <strong title="{{.ID}}">{{.Name}}</strong>
-        {{else}}
-        <strong title="{{.ID}}">{{.ID.Span}}</strong>
-        {{end}}
-
-        {{if .Span.Annotations}}
-        <table class="table table-condensed table-striped">
-          {{range (filterAnnotations .Span.Annotations)}}
-            {{if .Important}}
-              <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+        <ul class="traces">
+          <li class="trace" id="span-{{.Span.ID.Span}}">
+            {{if .Name}}
+            <strong title="{{.ID}}">{{.Name}}</strong>
+            {{else}}
+            <strong title="{{.ID}}">{{.ID.Span}}</strong>
             {{end}}
-          {{end}}
-        </table>
-        {{end}}
+
+            {{if .Span.Annotations}}
+            <table class="table table-condensed table-striped">
+              {{range (filterAnnotations .Span.Annotations)}}
+                {{if .Important}}
+                  <tr><th>{{.Key}}</th><td>{{str .Value}}</td></tr>
+                {{end}}
+              {{end}}
+            </table>
+            {{end}}
+          </li>
+        </ul>
       </li>
-    </ul>
-  </li>
+    {{end}}
   {{end}}
 </ul>
 
