@@ -13,7 +13,7 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
-// dasboardRow represents a single row in the dashboard. It is encoded to JSON.
+// dashboardRow represents a single row in the dashboard. It is encoded to JSON.
 type dashboardRow struct {
 	Name                      string
 	Average, Min, Max, StdDev time.Duration
