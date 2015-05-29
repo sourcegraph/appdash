@@ -1,6 +1,17 @@
 {{define "Title"}}{{if .Trace.ID.Parent}}span {{.Trace.ID.Span}} - {{end}} trace {{.Trace.ID.Trace}} - appdash{{end}}
 
 {{define "Main"}}
+<style>
+  #copy-json:hover {
+    cursor: pointer;
+  }
+  #copy-json-text {
+    display: none;
+    margin-top: 1em;
+    margin-left: 1em;
+  }
+</style>
+
 <h1>Trace {{.Trace.ID.Trace}}
   {{if not .Trace.ID.Parent}}
     <span style="font-size: 12px; vertical-align: middle;">
@@ -11,11 +22,20 @@
         but using arrays across the entire system simplifies the encoding and
         decoding processes slightly.
       -->
-      (<a id="copy-json" data-clipboard-text="[{{.Trace.String}}]">Copy as JSON</a>)
+      <span id="copy-json-clip">(<a id="copy-json" data-clipboard-text="[{{.Trace.String}}]">Copy as JSON</a>)</span>
     </span>
     {{end}}
 </h1>
-{{if .Trace.ID.Parent}}<h2>Sub-span {{.Trace.ID.Span}}</h2>{{end}}
+
+<!-- TextArea (non-Flash) fallback for Copy+Paste of JSON traces -->
+<div id="copy-json-text">
+  <form role="form">
+    <div class="form-group">
+      <label for="comment">Use ctrl+c or command+c to copy the JSON trace below:</label>
+      <textarea autocomplete="off" class="form-control" rows="5">[{{.Trace.String}}]</textarea>
+    </div>
+  </form>
+</div>
 
 <script type="text/javascript">
   (function() {
@@ -24,6 +44,17 @@
     client.on("ready", function( readyEvent ) {
       client.on("aftercopy", function( event ) {
         alert("JSON Trace copied to clipboard.");
+      });
+    });
+
+    // On any ZeroClipboard error (primarily when Flash is not available) we
+    // fallback to using the standard textarea.
+    client.on("error", function(e) {
+      client.destroy()
+      $("#copy-json").click(function() {
+        $("#copy-json-clip").hide();
+        $("#copy-json-text").show();
+        $("#copy-json-text textarea").focus().select();
       });
     });
   })();
