@@ -174,8 +174,19 @@ type AggregateStore struct {
 	Debug bool
 
 	// MemoryStore is the memory store were aggregated traces are saved to and
-	// deleted from.
+	// deleted from. It is the final destination for traces.
 	*MemoryStore
+
+	// Keep is a store that is sent each collection directly if non-nil. Once a
+	// trace would be evicted from the MemoryStore (i.e. if it's no longer one
+	// of the N-slowest traces for a group), this store is queried for the
+	// trace. If the trace exists the trace is kept in the memory store,
+	// otherwise it is deleted.
+	//
+	// This field is useful for saying "keep the N slowest traces AND all traces
+	// in the past 15 minutes (by setting Keep == RecentStore)", likewise it can
+	// be used with LimitStore, etc.
+	Keep Store
 
 	mu           sync.Mutex
 	groups       map[ID]*spanGroup // map of trace ID to span group.
@@ -254,7 +265,7 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	// Update the group to consider this trace being one of the slowest.
 	group.update(eStart, eEnd, id.Trace, func(trace ID) {
 		// Delete the request trace from the output store.
-		if err := as.MemoryStore.Delete(trace); err != nil {
+		if err := as.deleteOutput(trace); err != nil {
 			log.Printf("AggregateStore: failed to delete a trace: %s", err)
 		}
 	})
@@ -331,6 +342,27 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	}
 	if err := recEvent(ev); err != nil {
 		return err
+	}
+	return nil
+}
+
+// deleteOutput deletes the given traces from the output memory store. If
+// as.Keep is not nil and it has a trace still, it is kept rather than deleted.
+func (as *AggregateStore) deleteOutput(traces ...ID) error {
+	for _, trace := range traces {
+		if as.Keep != nil {
+			// Find the trace in the keep store.
+			_, err := as.Keep.Trace(trace)
+			if err == nil {
+				// We found it, and so we keep the trace.
+				return nil
+			} else if err != ErrTraceNotFound {
+				return err
+			}
+		}
+		if err := as.MemoryStore.Delete(trace); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -412,7 +444,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 		delete(as.groupsByName, group.Name)
 
 		// Also request removal of the group (AggregateEvent) from the output store.
-		err := as.MemoryStore.Delete(group.Trace)
+		err := as.deleteOutput(group.Trace)
 		if err != nil {
 			return err
 		}
@@ -430,7 +462,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 	// Spawn separate goroutine so we don't hold the as.mu lock.
 	go func() {
 		deleteStart := time.Now()
-		if err := as.MemoryStore.Delete(toEvict...); err != nil {
+		if err := as.deleteOutput(toEvict...); err != nil {
 			log.Printf("AggregateStore: failed to delete slowest traces: %s", err)
 		}
 		if as.Debug {
