@@ -5,11 +5,6 @@
   #copy-json:hover {
     cursor: pointer;
   }
-  #copy-json-text {
-    display: none;
-    margin-top: 1em;
-    margin-left: 1em;
-  }
 </style>
 
 <h1>Trace {{.Trace.ID.Trace}}
@@ -28,14 +23,7 @@
 </h1>
 
 <!-- TextArea (non-Flash) fallback for Copy+Paste of JSON traces -->
-<div id="copy-json-text">
-  <form role="form">
-    <div class="form-group">
-      <label for="comment">Use ctrl+c or command+c to copy the JSON trace below:</label>
-      <textarea autocomplete="off" class="form-control" rows="5">[{{.Trace.String}}]</textarea>
-    </div>
-  </form>
-</div>
+{{template "ImportExport" dict "ID" "copy-json-text" "Title" "Use ctrl+c or command+c to copy the JSON trace below:" "Value" (printf "[%s]" .Trace.String)}}
 
 <script type="text/javascript">
   (function() {
@@ -53,8 +41,8 @@
       client.destroy()
       $("#copy-json").click(function() {
         $("#copy-json-clip").hide();
-        $("#copy-json-text").show();
-        $("#copy-json-text textarea").focus().select();
+        $("#copy-json-text").collapse("show");
+        $("#copy-json-text .textarea").focus().select();
       });
     });
   })();

@@ -2,6 +2,7 @@ package traceapp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	htmpl "html/template"
 	"net/http"
@@ -93,6 +94,7 @@ func (a *App) parseHTMLTemplates(sets [][]string) error {
 			"durationClass":     durationClass,
 			"filterAnnotations": filterAnnotations,
 			"descendTraces":     func() bool { return false },
+			"dict":              dict,
 		})
 		for _, tmp := range set {
 			tmplBytes, err := tmpl.Asset(tmp)
@@ -147,4 +149,17 @@ func filterAnnotations(anns appdash.Annotations) appdash.Annotations {
 	}
 	return anns2
 
+}
+
+// dict builds a map of paired items, allowing you to invoke a template with
+// multiple parameters.
+func dict(pairs ...interface{}) (map[string]interface{}, error) {
+	if len(pairs)%2 != 0 {
+		return nil, errors.New("expected pairs")
+	}
+	m := make(map[string]interface{}, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		m[pairs[i].(string)] = pairs[i+1]
+	}
+	return m, nil
 }

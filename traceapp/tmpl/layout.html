@@ -197,3 +197,27 @@
   </body>
 </html>
 {{end}}
+
+{{define "ImportExport"}}
+  <!-- import-export menu -->
+  <div id="{{.ID}}" class="collapse">
+    <!-- TextArea -->
+    <form role="form">
+      <div class="form-group">
+        {{with .Title}}
+          <label for="comment" class="title">{{.}}</label>
+        {{end}}
+        <textarea autocomplete="off" class="form-control textarea" rows="5">{{with .Value}}{{.}}{{end}}</textarea>
+      </div>
+    </form>
+    <br/>
+    <!-- Action / Cancel buttons -->
+    <div class="btn-toolbar">
+      {{with .Action}}
+        <button class="btn btn-default pull-right action" type="button">{{.}}</button>
+      {{end}}
+      <button class="btn btn-default pull-right cancel" type="button" data-toggle="collapse" data-target="#{{.ID}}">Cancel</button>
+    </div>
+    <hr/>
+  </div>
+{{end}}
