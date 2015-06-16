@@ -224,29 +224,8 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	}
 
 	// Find the start and end time of the trace.
-	var (
-		eStart, eEnd time.Time
-		haveTimes    = false
-	)
-	for _, e := range events {
-		e, ok := e.(TimespanEvent)
-		if !ok {
-			continue
-		}
-		if !haveTimes {
-			haveTimes = true
-			eStart = e.Start()
-			eEnd = e.End()
-			continue
-		}
-		if v := e.Start(); v.UnixNano() < eStart.UnixNano() {
-			eStart = v
-		}
-		if v := e.End(); v.UnixNano() > eEnd.UnixNano() {
-			eEnd = v
-		}
-	}
-	if !haveTimes {
+	eStart, eEnd, ok := findTraceTimes(events)
+	if !ok {
 		// We didn't find any timespan events at all, so we're done here.
 		return nil
 	}
@@ -438,4 +417,38 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 		}
 	}()
 	return nil
+}
+
+// findTraceTimes finds the minimum and maximum timespan event times for the
+// given set of events, or returns ok == false if there are no such events.
+func findTraceTimes(events []Event) (start, end time.Time, ok bool) {
+	// Find the start and end time of the trace.
+	var (
+		eStart, eEnd time.Time
+		haveTimes    = false
+	)
+	for _, e := range events {
+		e, ok := e.(TimespanEvent)
+		if !ok {
+			continue
+		}
+		if !haveTimes {
+			haveTimes = true
+			eStart = e.Start()
+			eEnd = e.End()
+			continue
+		}
+		if v := e.Start(); v.UnixNano() < eStart.UnixNano() {
+			eStart = v
+		}
+		if v := e.End(); v.UnixNano() > eEnd.UnixNano() {
+			eEnd = v
+		}
+	}
+	if !haveTimes {
+		// We didn't find any timespan events at all, so we're done here.
+		ok = false
+		return
+	}
+	return eStart, eEnd, true
 }

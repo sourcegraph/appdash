@@ -1,6 +1,7 @@
 package appdash
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -88,6 +89,126 @@ func TestAggregateStore(t *testing.T) {
 	}
 	if len(found) != as.NSlowest {
 		t.Fatalf("expected %d N-slowest full traces, found %d", as.NSlowest, len(found))
+	}
+}
+
+// TestAggregateStoreNSlowest tests that the AggregateStore.NSlowest field is
+// operating correctly.
+func TestAggregateStoreNSlowest(t *testing.T) {
+	// Create an aggregate store.
+	ms := NewMemoryStore()
+	as := &AggregateStore{
+		MinEvictAge: 72 * time.Hour,
+		MaxRate:     4096,
+		NSlowest:    5,
+		MemoryStore: ms,
+	}
+
+	now := time.Now()
+
+	insert := func(times []time.Duration) []time.Duration {
+		// Record a few traces under the same name.
+		for i := 0; i < len(times); i++ {
+			root := NewRootSpanID()
+			rec := NewRecorder(root, as)
+			rec.Name("the-trace-name")
+			e := fakeTimespan{
+				S: now,
+				E: now.Add(times[i]),
+			}
+			rec.Event(e)
+			if errs := rec.Errors(); len(errs) > 0 {
+				t.Fatal(errs)
+			}
+		}
+
+		// Query the traces from the memory store.
+		traces, err := ms.Traces()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// One trace is the aggregated one, the other 5 are the N-slowest full
+		// traces.
+		if len(traces) != as.NSlowest+1 {
+			t.Fatalf("expected %d traces got %d", as.NSlowest+1, len(traces))
+		}
+
+		// Verify we have the aggregated trace events.
+		var agg []AggregateEvent
+		for _, tr := range traces {
+			evs, err := tr.Aggregated()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(evs) > 0 {
+				agg = evs
+			}
+		}
+		if len(agg) != 1 {
+			t.Fatalf("expected 1 aggregated trace event, found %d", len(agg))
+		}
+
+		// Determine time of each slowest trace.
+		var d []time.Duration
+		for _, slowest := range agg[0].Slowest {
+			st, err := ms.Trace(slowest)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Unmarshal the events.
+			var events []Event
+			if err := UnmarshalEvents(st.Annotations, &events); err != nil {
+				t.Fatal(err)
+			}
+
+			start, end, ok := findTraceTimes(events)
+			if !ok {
+				t.Fatal("no timespane events")
+			}
+			d = append(d, end.Sub(start))
+		}
+		return d
+	}
+
+	// Insert ten basic values to start with.
+	want := []time.Duration{
+		5 * time.Minute,
+		5 * time.Minute,
+		4 * time.Minute,
+		4 * time.Minute,
+		3 * time.Minute,
+	}
+	got := insert([]time.Duration{
+		2 * time.Minute,
+		3 * time.Minute,
+		5 * time.Minute,
+		4 * time.Minute,
+		1 * time.Minute,
+		4 * time.Minute,
+		2 * time.Minute,
+		5 * time.Minute,
+		3 * time.Minute,
+		1 * time.Minute,
+	})
+	if !reflect.DeepEqual(got, want) {
+		t.Logf("got %v\n", got)
+		t.Fatalf("want %v", want)
+	}
+
+	// Now we insert a sixth value which should overtake the smallest duration.
+	want = []time.Duration{
+		6 * time.Minute,
+		5 * time.Minute,
+		5 * time.Minute,
+		4 * time.Minute,
+		4 * time.Minute,
+	}
+	got = insert([]time.Duration{6 * time.Minute})
+	if !reflect.DeepEqual(got, want) {
+		t.Logf("got %v\n", got)
+		t.Fatalf("want %v", want)
 	}
 }
 
