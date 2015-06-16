@@ -90,3 +90,61 @@ func TestAggregateStore(t *testing.T) {
 		t.Fatalf("expected %d N-slowest full traces, found %d", as.NSlowest, len(found))
 	}
 }
+
+func TestAggregateStoreMinEvictAge(t *testing.T) {
+	// Create an aggregate store.
+	ms := NewMemoryStore()
+	as := &AggregateStore{
+		MinEvictAge: 1 * time.Second,
+		MaxRate:     4096,
+		NSlowest:    5,
+		MemoryStore: ms,
+	}
+
+	// Record a few traces.
+	for i := 0; i < 10; i++ {
+		root := NewRootSpanID()
+		rec := NewRecorder(root, as)
+		rec.Name("the-trace-name")
+		e := fakeTimespan{
+			S: time.Now().Add(time.Duration(-i) * time.Minute),
+			E: time.Now(),
+		}
+		rec.Event(e)
+		if errs := rec.Errors(); len(errs) > 0 {
+			t.Fatal(errs)
+		}
+	}
+
+	// Verify the number of recorded traces.
+	traces, err := ms.Traces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(traces) != 6 {
+		t.Fatalf("expected 6 traces got %d", len(traces))
+	}
+
+	// Wait so that next collection will cause eviction.
+	time.Sleep(as.MinEvictAge)
+
+	// Trigger the eviction by making any sort of collection.
+	rec := NewRecorder(NewRootSpanID(), as)
+	rec.Name("collect")
+	if errs := rec.Errors(); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+
+	// Wait for deletion to occur (it happens in a separate goroutine and we
+	// don't want to introduce synchronization just for this test).
+	time.Sleep(1 * time.Second)
+
+	// Verify the eviction.
+	traces, err = ms.Traces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(traces) != 0 {
+		t.Fatalf("expected 0 traces got %d", len(traces))
+	}
+}
