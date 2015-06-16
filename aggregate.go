@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 )
@@ -67,6 +68,11 @@ type spanGroupSlowest struct {
 	Start, End time.Time // Start and end time of the slowest trace.
 }
 
+// empty tells if this spanGroupSlowest slot is empty / uninitialized.
+func (s spanGroupSlowest) empty() bool {
+	return s == spanGroupSlowest{}
+}
+
 // spanGroup represents all of the times for the root spans (i.e. traces) of the
 // given name. It also contains the N-slowest traces of the group.
 type spanGroup struct {
@@ -78,19 +84,32 @@ type spanGroup struct {
 	Slowest []spanGroupSlowest // N-slowest traces in the group.
 }
 
+func (s spanGroup) Len() int      { return len(s.Slowest) }
+func (s spanGroup) Swap(i, j int) { s.Slowest[i], s.Slowest[j] = s.Slowest[j], s.Slowest[i] }
+func (s spanGroup) Less(i, j int) bool {
+	a := s.Slowest[i]
+	b := s.Slowest[j]
+	return a.End.Sub(a.Start) > b.End.Sub(b.Start)
+}
+
 // update updates the span group to account for a potentially slowest trace,
 // returning whether or not the given trace was indeed slowest.
 func (s *spanGroup) update(start, end time.Time, trace ID, remove func(trace ID)) bool {
 	s.Times = append(s.Times, [2]time.Time{start, end})
 
-	for i, sm := range s.Slowest {
+	// The s.Slowest list is kept sorted from slowest to fastest. As we want to
+	// steal the slot from the fastest (or zero) one we iterate over it
+	// backwards comparing times.
+	for i := len(s.Slowest) - 1; i > 0; i-- {
+		sm := s.Slowest[i]
 		if sm.TraceID == trace {
 			// Trace is already inside the group as one of the slowest.
 			return false
 		}
-		zero := sm.Start.IsZero() && sm.End.IsZero()
-		if !zero && end.Sub(start) > sm.End.Sub(sm.Start) {
-			// Not this one.
+
+		// If our time is lesser than the trace in the slot already, we aren't
+		// slower so don't steal the slot.
+		if end.Sub(start) < sm.End.Sub(sm.Start) {
 			continue
 		}
 
@@ -101,10 +120,12 @@ func (s *spanGroup) update(start, end time.Time, trace ID, remove func(trace ID)
 			remove(sm.TraceID)
 		}
 
-		sm.Start = start
-		sm.End = end
-		sm.TraceID = trace
-		s.Slowest[i] = sm
+		s.Slowest[i] = spanGroupSlowest{
+			TraceID: trace,
+			Start:   start,
+			End:     end,
+		}
+		sort.Sort(s)
 		return true
 	}
 	return false
@@ -280,7 +301,7 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		Times: group.Times,
 	}
 	for _, slowest := range group.Slowest {
-		if slowest.TraceID != 0 {
+		if !slowest.empty() {
 			ev.Slowest = append(ev.Slowest, slowest.TraceID)
 		}
 	}
@@ -369,7 +390,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 
 	searchSlowest:
 		for i, sm := range group.Slowest {
-			if sm.Start.UnixNano() < tnano {
+			if !sm.empty() && sm.Start.UnixNano() < tnano {
 				group.Slowest = append(group.Slowest[:i], group.Slowest[i+1:]...)
 				toEvict = append(toEvict, sm.TraceID)
 				goto searchSlowest
