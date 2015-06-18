@@ -89,6 +89,9 @@ func (s spanGroup) Swap(i, j int) { s.Slowest[i], s.Slowest[j] = s.Slowest[j], s
 func (s spanGroup) Less(i, j int) bool {
 	a := s.Slowest[i]
 	b := s.Slowest[j]
+
+	// A sorts before B if it took a greater amount of time than B (slowest
+	// to-fastest sorting).
 	return a.End.Sub(a.Start) > b.End.Sub(b.Start)
 }
 
