@@ -232,6 +232,36 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		}
 	}
 
+	if as.Debug {
+		// Determine the total number of traces and times in each named span
+		// group.
+		nTraces := 0
+		nTimes := 0
+		for _, id := range as.groupsByName {
+			g := as.groups[id]
+			nTraces += len(g.Slowest)
+			nTimes += len(g.Times)
+		}
+
+		// Log some statistics: these can be used to identify serious issues
+		// relating to overstorage or memory leakage in the primary data maps.
+		msTraces, err := as.MemoryStore.Traces()
+		if err != nil {
+			log.Println(err)
+		}
+		log.Printf("AggregateStore: [%d groups by ID] [%d groups by name] [%d-slowest traces] [%d trace times]\n", len(as.groups), len(as.groupsByName), nTraces, nTimes)
+		log.Printf("AggregateStore: [%d traces in MemoryStore; exceeding us by %d] [eviction in %s]\n", len(msTraces), len(msTraces)-nTraces, as.MinEvictAge-time.Since(as.lastEvicted))
+
+		// Validate that the N-slowest traces we store are not exceeding what the user asked for.
+		if nTraces > 0 && (len(as.groupsByName)/nTraces) > as.NSlowest {
+			log.Println("AggregateStore: WARNING: Have too many N-slowest traces for each span group:")
+			for _, id := range as.groupsByName {
+				g := as.groups[id]
+				log.Printf("AggregateStore: %q has %d-slowest traces\n", g.Name, len(g.Slowest))
+			}
+		}
+	}
+
 	// Collect into the limit store.
 	if err := as.pre.Collect(id, anns...); err != nil {
 		return err
