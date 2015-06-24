@@ -239,7 +239,11 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		nTimes := 0
 		for _, id := range as.groupsByName {
 			g := as.groups[id]
-			nTraces += len(g.Slowest)
+			for _, sm := range g.Slowest {
+				if sm.TraceID != 0 {
+					nTraces++
+				}
+			}
 			nTimes += len(g.Times)
 		}
 
