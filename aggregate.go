@@ -471,7 +471,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 			}
 		}
 
-		// If the group is not complete empty, we have nothing more to do.
+		// If the group is not completely empty, we have nothing more to do.
 		if len(group.Times) > 0 || len(group.Slowest) > 0 {
 			continue
 		}
