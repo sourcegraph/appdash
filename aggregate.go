@@ -249,8 +249,13 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		if err != nil {
 			log.Println(err)
 		}
+		exceeding := len(msTraces) - (len(as.groupsByName) * as.NSlowest)
+		if exceeding < 0 {
+			exceeding = 0
+		}
+		nextEvict := as.MinEvictAge - time.Since(as.lastEvicted)
 		log.Printf("AggregateStore: [%d groups by ID] [%d groups by name] [%d-slowest traces] [%d trace times]\n", len(as.groups), len(as.groupsByName), nTraces, nTimes)
-		log.Printf("AggregateStore: [%d traces in MemoryStore; exceeding us by %d] [eviction in %s]\n", len(msTraces), len(msTraces)-nTraces, as.MinEvictAge-time.Since(as.lastEvicted))
+		log.Printf("AggregateStore: [%d traces in MemoryStore; exceeding us by %d] [eviction in %s]\n", len(msTraces), exceeding, nextEvict)
 
 		// Validate that the N-slowest traces we store are not exceeding what the user asked for.
 		if nTraces > 0 && (len(as.groupsByName)/nTraces) > as.NSlowest {
