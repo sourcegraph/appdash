@@ -412,6 +412,7 @@ func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
 		return nil
 	}
 	ls.mu.Lock()
+	defer ls.mu.Unlock()
 	if ls.ring == nil {
 		ls.ring = make([]int64, ls.Max)
 		ls.traces = make(map[ID]struct{}, ls.Max)
@@ -421,7 +422,6 @@ func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
 	// an old trace upon each annotation collection, rather than upon each new
 	// trace.
 	if _, ok := ls.traces[id.Trace]; ok {
-		ls.mu.Unlock()
 		return ls.DeleteStore.Collect(id, anns...)
 	}
 
@@ -431,14 +431,12 @@ func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
 		old := ID(ls.ring[ls.nextInsertIdx])
 		delete(ls.traces, old)
 		if err := ls.DeleteStore.Delete(old); err != nil {
-			ls.mu.Unlock()
 			return err
 		}
 	}
 	ls.traces[id.Trace] = struct{}{}
 	ls.ring[ls.nextInsertIdx] = int64(id.Trace)
 	ls.nextInsertIdx = (ls.nextInsertIdx + 1) % ls.Max // increment & wrap
-	ls.mu.Unlock()
 
 	return ls.DeleteStore.Collect(id, anns...)
 }
