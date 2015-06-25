@@ -363,6 +363,7 @@ func TestLimitStore(t *testing.T) {
 	}
 
 	rs.MustCollect(SpanID{3, 4, 5})
+	rs.MustCollect(SpanID{3, 5, 6})
 
 	if traces, _ := ms.Traces(); len(traces) != 2 {
 		t.Errorf("got traces %v, want %d total", traces, 2)
@@ -371,7 +372,12 @@ func TestLimitStore(t *testing.T) {
 	traces, _ := ms.Traces()
 	want := []*Trace{
 		{Span: Span{ID: SpanID{2, 3, 4}}},
-		{Span: Span{ID: SpanID{3, 4, 5}}},
+		{
+			Span: Span{ID: SpanID{3, 5, 6}},
+			Sub: []*Trace{
+				{Span: Span{ID: SpanID{3, 4, 5}}},
+			},
+		},
 	}
 	sort.Sort(tracesByIDSpan(traces))
 	if !reflect.DeepEqual(traces, want) {
