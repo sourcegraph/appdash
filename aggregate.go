@@ -193,6 +193,7 @@ type AggregateStore struct {
 
 	mu           sync.Mutex
 	groups       map[ID]*spanGroup // map of trace ID to span group.
+	insertTimes  map[ID]time.Time  // map of times that groups was inserted into at
 	groupsByName map[string]ID     // looks up a groups trace ID by name.
 	pre          *LimitStore       // traces which do not have span groups yet
 	lastEvicted  time.Time         // last time that eviction ran
@@ -233,11 +234,13 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	// Initialization
 	if as.groups == nil {
 		as.groups = make(map[ID]*spanGroup)
+		as.insertTimes = make(map[ID]time.Time)
 		as.groupsByName = make(map[string]ID)
 		as.pre = &LimitStore{
 			Max:         as.MaxRate,
 			DeleteStore: NewMemoryStore(),
 		}
+		go as.clearGroups()
 	}
 
 	if as.Debug {
@@ -246,7 +249,10 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		nTraces := 0
 		nTimes := 0
 		for _, id := range as.groupsByName {
-			g := as.groups[id]
+			g, ok := as.groups[id]
+			if !ok {
+				continue
+			}
 			for _, sm := range g.Slowest {
 				if sm.TraceID != 0 {
 					nTraces++
@@ -443,6 +449,7 @@ func (as *AggregateStore) group(id SpanID, anns ...Annotation) (*spanGroup, bool
 	if groupID, ok := as.groupsByName[name.Name]; ok {
 		group := as.groups[groupID]
 		as.groups[id.Trace] = group
+		as.insertTimes[id.Trace] = time.Now()
 		return group, true
 	}
 
@@ -453,8 +460,37 @@ func (as *AggregateStore) group(id SpanID, anns ...Annotation) (*spanGroup, bool
 		Slowest: make([]spanGroupSlowest, as.NSlowest),
 	}
 	as.groups[id.Trace] = group
+	as.insertTimes[id.Trace] = time.Now()
 	as.groupsByName[name.Name] = id.Trace
 	return group, true
+}
+
+// clearGroups removes IDs from as.groups once they are old enough to no longer
+// need to be alive (i.e. after we're certain no more collections will occur for
+// that ID). It is used so the map does not leak memory.
+//
+// TODO(slimsag): find a more correct solution to this. Maybe we can get rid of
+// as.groups all-together and have no need for clearing them here?
+func (as *AggregateStore) clearGroups() {
+	deleteAfter := 30 * time.Second
+	for {
+		time.Sleep(deleteAfter)
+
+		as.mu.Lock()
+	removal:
+		for id, _ := range as.groups {
+			if time.Since(as.insertTimes[id]) > deleteAfter {
+				for _, nameID := range as.groupsByName {
+					if id == nameID {
+						continue removal
+					}
+				}
+				delete(as.insertTimes, id)
+				delete(as.groups, id)
+			}
+		}
+		as.mu.Unlock()
+	}
 }
 
 // evictBefore evicts aggregation events that were created before t.
