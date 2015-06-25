@@ -399,8 +399,9 @@ type LimitStore struct {
 	DeleteStore
 
 	mu            sync.Mutex
-	ring          []int64 // ring is a circular list of trace IDs in insertion order.
-	nextInsertIdx int     // nextInsertIdx is the ring index for the next insertion.
+	traces        map[ID]struct{} // map of traces to quickly determine which traces exist in ring already.
+	ring          []int64         // ring is a circular list of trace IDs in insertion order.
+	nextInsertIdx int             // nextInsertIdx is the ring index for the next insertion.
 
 }
 
@@ -413,15 +414,32 @@ func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
 	ls.mu.Lock()
 	if ls.ring == nil {
 		ls.ring = make([]int64, ls.Max)
+		ls.traces = make(map[ID]struct{}, ls.Max)
 	}
+
+	// Check if the trace already exists in the ring. Otherwise, we would evict
+	// an old trace upon each annotation collection, rather than upon each new
+	// trace.
+	ids := make([]ID, 0)
+	for _, x := range ls.ring {
+		ids = append(ids, ID(x))
+	}
+	if _, ok := ls.traces[id.Trace]; ok {
+		ls.mu.Unlock()
+		return ls.DeleteStore.Collect(id, anns...)
+	}
+
 	if nextInsert := ls.ring[ls.nextInsertIdx]; nextInsert != 0 {
 		// Store is at capacity (we know this because the next insert
 		// slot already contains trace); delete oldest.
-		if err := ls.DeleteStore.Delete(ID(ls.ring[ls.nextInsertIdx])); err != nil {
+		old := ID(ls.ring[ls.nextInsertIdx])
+		delete(ls.traces, old)
+		if err := ls.DeleteStore.Delete(old); err != nil {
 			ls.mu.Unlock()
 			return err
 		}
 	}
+	ls.traces[id.Trace] = struct{}{}
 	ls.ring[ls.nextInsertIdx] = int64(id.Trace)
 	ls.nextInsertIdx = (ls.nextInsertIdx + 1) % ls.Max // increment & wrap
 	ls.mu.Unlock()
