@@ -399,7 +399,7 @@ type LimitStore struct {
 	DeleteStore
 
 	mu            sync.Mutex
-	traces        map[ID]struct{} // map of traces to quickly determine which traces exist in ring already.
+	traces        map[ID]struct{} // set of traces to quickly determine which traces exist in ring already.
 	ring          []int64         // ring is a circular list of trace IDs in insertion order.
 	nextInsertIdx int             // nextInsertIdx is the ring index for the next insertion.
 
