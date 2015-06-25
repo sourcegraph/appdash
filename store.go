@@ -420,10 +420,6 @@ func (ls *LimitStore) Collect(id SpanID, anns ...Annotation) error {
 	// Check if the trace already exists in the ring. Otherwise, we would evict
 	// an old trace upon each annotation collection, rather than upon each new
 	// trace.
-	ids := make([]ID, 0)
-	for _, x := range ls.ring {
-		ids = append(ids, ID(x))
-	}
 	if _, ok := ls.traces[id.Trace]; ok {
 		ls.mu.Unlock()
 		return ls.DeleteStore.Collect(id, anns...)
