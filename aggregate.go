@@ -219,6 +219,14 @@ func NewAggregateStore() *AggregateStore {
 // Collect calls the underlying store's Collect, deleting the oldest
 // trace if the capacity has been reached.
 func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
+	// Send collections directly to Keep, as promised.
+	if as.Keep != nil {
+		err := as.Keep.Collect(id, anns...)
+		if err != nil {
+			return err
+		}
+	}
+
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
