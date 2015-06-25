@@ -193,6 +193,7 @@ type AggregateStore struct {
 
 	mu           sync.Mutex
 	groups       map[ID]*spanGroup // map of trace ID to span group.
+	insertTimes  map[ID]time.Time  // map of times that groups was inserted into at
 	groupsByName map[string]ID     // looks up a groups trace ID by name.
 	pre          *LimitStore       // traces which do not have span groups yet
 	lastEvicted  time.Time         // last time that eviction ran
@@ -219,16 +220,68 @@ func NewAggregateStore() *AggregateStore {
 // Collect calls the underlying store's Collect, deleting the oldest
 // trace if the capacity has been reached.
 func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
+	// Send collections directly to Keep, as promised.
+	if as.Keep != nil {
+		err := as.Keep.Collect(id, anns...)
+		if err != nil {
+			return err
+		}
+	}
+
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
 	// Initialization
 	if as.groups == nil {
 		as.groups = make(map[ID]*spanGroup)
+		as.insertTimes = make(map[ID]time.Time)
 		as.groupsByName = make(map[string]ID)
 		as.pre = &LimitStore{
 			Max:         as.MaxRate,
 			DeleteStore: NewMemoryStore(),
+		}
+		go as.clearGroups()
+	}
+
+	if as.Debug {
+		// Determine the total number of traces and times in each named span
+		// group.
+		nTraces := 0
+		nTimes := 0
+		for _, id := range as.groupsByName {
+			g, ok := as.groups[id]
+			if !ok {
+				continue
+			}
+			for _, sm := range g.Slowest {
+				if sm.TraceID != 0 {
+					nTraces++
+				}
+			}
+			nTimes += len(g.Times)
+		}
+
+		// Log some statistics: these can be used to identify serious issues
+		// relating to overstorage or memory leakage in the primary data maps.
+		msTraces, err := as.MemoryStore.Traces()
+		if err != nil {
+			log.Println(err)
+		}
+		exceeding := len(msTraces) - (len(as.groupsByName) * as.NSlowest)
+		if exceeding < 0 {
+			exceeding = 0
+		}
+		nextEvict := as.MinEvictAge - time.Since(as.lastEvicted)
+		log.Printf("AggregateStore: [%d groups by ID] [%d groups by name] [%d-slowest traces] [%d trace times]\n", len(as.groups), len(as.groupsByName), nTraces, nTimes)
+		log.Printf("AggregateStore: [%d traces in MemoryStore; exceeding us by %d] [eviction in %s]\n", len(msTraces), exceeding, nextEvict)
+
+		// Validate that the N-slowest traces we store are not exceeding what the user asked for.
+		if nTraces > 0 && (len(as.groupsByName)/nTraces) > as.NSlowest {
+			log.Println("AggregateStore: WARNING: Have too many N-slowest traces for each span group:")
+			for _, id := range as.groupsByName {
+				g := as.groups[id]
+				log.Printf("AggregateStore: %q has %d-slowest traces\n", g.Name, len(g.Slowest))
+			}
 		}
 	}
 
@@ -396,6 +449,7 @@ func (as *AggregateStore) group(id SpanID, anns ...Annotation) (*spanGroup, bool
 	if groupID, ok := as.groupsByName[name.Name]; ok {
 		group := as.groups[groupID]
 		as.groups[id.Trace] = group
+		as.insertTimes[id.Trace] = time.Now()
 		return group, true
 	}
 
@@ -406,8 +460,37 @@ func (as *AggregateStore) group(id SpanID, anns ...Annotation) (*spanGroup, bool
 		Slowest: make([]spanGroupSlowest, as.NSlowest),
 	}
 	as.groups[id.Trace] = group
+	as.insertTimes[id.Trace] = time.Now()
 	as.groupsByName[name.Name] = id.Trace
 	return group, true
+}
+
+// clearGroups removes IDs from as.groups once they are old enough to no longer
+// need to be alive (i.e. after we're certain no more collections will occur for
+// that ID). It is used so the map does not leak memory.
+//
+// TODO(slimsag): find a more correct solution to this. Maybe we can get rid of
+// as.groups all-together and have no need for clearing them here?
+func (as *AggregateStore) clearGroups() {
+	deleteAfter := 30 * time.Second
+	for {
+		time.Sleep(deleteAfter)
+
+		as.mu.Lock()
+	removal:
+		for id, _ := range as.groups {
+			if time.Since(as.insertTimes[id]) > deleteAfter {
+				for _, nameID := range as.groupsByName {
+					if id == nameID {
+						continue removal
+					}
+				}
+				delete(as.insertTimes, id)
+				delete(as.groups, id)
+			}
+		}
+		as.mu.Unlock()
+	}
 }
 
 // evictBefore evicts aggregation events that were created before t.
@@ -432,7 +515,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 			}
 		}
 
-		// If the group is not complete empty, we have nothing more to do.
+		// If the group is not completely empty, we have nothing more to do.
 		if len(group.Times) > 0 || len(group.Slowest) > 0 {
 			continue
 		}
