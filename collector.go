@@ -62,7 +62,7 @@ type ChunkedCollector struct {
 	stopChan         chan struct{}
 
 	pending         []SpanID
-	pendingBySpanID map[SpanID]*wire.CollectPacket
+	pendingBySpanID map[SpanID]Annotations
 
 	// mu protects pending, pendingBySpanID, lastErr, started,
 	// stopped, and stopChan.
@@ -84,15 +84,15 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 	}
 
 	if cc.pendingBySpanID == nil {
-		cc.pendingBySpanID = map[SpanID]*wire.CollectPacket{}
+		cc.pendingBySpanID = make(map[SpanID]Annotations)
 	}
 
 	if p, present := cc.pendingBySpanID[span]; present {
 		if len(anns) > 0 {
-			p.Annotation = append(p.Annotation, Annotations(anns).wire()...)
+			cc.pendingBySpanID[span] = append(p, anns...)
 		}
 	} else {
-		cc.pendingBySpanID[span] = newCollectPacket(span, anns)
+		cc.pendingBySpanID[span] = anns
 		cc.pending = append(cc.pending, span)
 	}
 
@@ -116,7 +116,7 @@ func (cc *ChunkedCollector) Flush() error {
 	var errs []error
 	for _, spanID := range pending {
 		p := pendingBySpanID[spanID]
-		if err := cc.Collector.Collect(spanIDFromWire(p.Spanid), annotationsFromWire(p.Annotation)...); err != nil {
+		if err := cc.Collector.Collect(spanID, p...); err != nil {
 			errs = append(errs, err)
 		}
 	}
