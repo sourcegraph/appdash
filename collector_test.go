@@ -118,6 +118,42 @@ func TestCollectorServer_stress(t *testing.T) {
 	}
 }
 
+func BenchmarkRemoteCollector1000(b *testing.B) {
+	const (
+		nCollections = 1000
+		nAnnotations = 1000
+	)
+
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	cs := NewServer(l, collectorFunc(func(span SpanID, anns ...Annotation) error {
+		return nil
+	}))
+	go cs.Start()
+
+	c := NewRemoteCollector(l.Addr().String())
+	// cc.Collector.(*RemoteCollector).Debug = true
+	for n := 0; n < b.N; n++ {
+		for nc := 0; nc < nCollections; nc++ {
+			id := NewRootSpanID()
+			anns := make([]Annotation, nAnnotations)
+			for a := range anns {
+				anns[a] = Annotation{"k1", []byte("v1")}
+			}
+			if err := c.Collect(NewRootSpanID(), anns...); err != nil {
+				b.Fatalf("Collect(%+v, %v): %s", id, anns, err)
+			}
+		}
+	}
+
+	if err := c.Close(); err != nil {
+		b.Error(err)
+	}
+}
+
 func TestTLSCollectorServer(t *testing.T) {
 	var numPackets int
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
@@ -260,7 +296,7 @@ func BenchmarkChunkedCollector500(b *testing.B) {
 		}),
 		MinInterval: time.Millisecond * 10,
 	}
-	const(
+	const (
 		nCollections = 500
 		nAnnotations = 50
 	)
