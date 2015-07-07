@@ -525,3 +525,28 @@ func BenchmarkRecentStore500(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkLimitStore500(b *testing.B) {
+	const (
+		nCollections = 500
+		nAnnotations = 100
+	)
+	rs := &LimitStore{
+		DeleteStore: NewMemoryStore(),
+		Max:         2000,
+	}
+	var x ID
+	for i := 0; i < b.N; i++ {
+		for c := 0; c < nCollections; c++ {
+			x++
+			anns := make([]Annotation, nAnnotations)
+			for a := range anns {
+				anns[a] = Annotation{"k1", []byte("v1")}
+			}
+			err := rs.Collect(SpanID{x, 2, 3}, anns...)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
