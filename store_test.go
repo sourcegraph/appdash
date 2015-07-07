@@ -502,15 +502,23 @@ func BenchmarkMemoryStoreReadFrom1000(b *testing.B) {
 }
 
 func BenchmarkRecentStore500(b *testing.B) {
+	const (
+		nCollections = 500
+		nAnnotations = 100
+	)
 	rs := &RecentStore{
 		DeleteStore: NewMemoryStore(),
 		MinEvictAge: 20 * time.Second,
 	}
 	var x ID
 	for i := 0; i < b.N; i++ {
-		for c := 0; c < 500; c++ {
+		for c := 0; c < nCollections; c++ {
 			x++
-			err := rs.Collect(SpanID{x, 2, 3})
+			anns := make([]Annotation, nAnnotations)
+			for a := range anns {
+				anns[a] = Annotation{"k1", []byte("v1")}
+			}
+			err := rs.Collect(SpanID{x, 2, 3}, anns...)
 			if err != nil {
 				b.Fatal(err)
 			}
