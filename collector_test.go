@@ -260,11 +260,19 @@ func BenchmarkChunkedCollector500(b *testing.B) {
 		}),
 		MinInterval: time.Millisecond * 10,
 	}
+	const(
+		nCollections = 500
+		nAnnotations = 50
+	)
 	var x ID
 	for i := 0; i < b.N; i++ {
-		for c := 0; c < 500; c++ {
+		for c := 0; c < nCollections; c++ {
+			anns := make([]Annotation, nAnnotations)
+			for i := range anns {
+				anns[i] = Annotation{Key: "k", Value: []byte{'v'}}
+			}
 			x++
-			err := cc.Collect(SpanID{x, x + 1, x + 2})
+			err := cc.Collect(SpanID{x, x + 1, x + 2}, anns...)
 			if err != nil {
 				b.Fatal(err)
 			}
