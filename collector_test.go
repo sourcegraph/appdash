@@ -121,7 +121,7 @@ func TestCollectorServer_stress(t *testing.T) {
 func BenchmarkRemoteCollector1000(b *testing.B) {
 	const (
 		nCollections = 1000
-		nAnnotations = 1000
+		nAnnotations = 100
 	)
 
 	l, err := net.Listen("tcp", ":0")
