@@ -151,6 +151,34 @@ search:
 	}
 }
 
+// The AggregateStore collection process can be described as follows:
+//
+// 1. Collection on AggregateStore occurs.
+// 2. Collection is sent directly to Keep.
+//   - This way as.Keep is aware of all collections that went through us.
+//   - In steps 4 and 7, we'll ask if as.Keep wants us to keep the trace.
+//     - If so, we keep it and never delete it (its as.Keeps responsibility).
+//   - When as.Keep is done with it (e.g. it's not recent), it will delete it from our output MemoryStore.
+// 3. Collection is sent directly to pre-storage
+//   - i.e. LimitStore backed by its own MemoryStore.
+// 4. Eviction runs if needed.
+//   - Every group has an eviction process ran; removes times older than 72/hrs.
+//   - Each N-slowest trace in the group older than 72hr is evicted from output.
+//     - Only if as.Keep does not contain it.
+//   - Empty span groups (no trace over past 72/hr) are removed entirely.
+// 5. Find a group for the collection
+//   - Only succeeds if a spanName has or is being been collected.
+//   - Otherwise collections end up in pre-storage until we get the spanName.
+// 6. Collection is unmarshaled into a set of events, trace time is determined.
+// 7. Group is updated to consider the collection as being one of the N-slowest.
+//   - Older N-slowest trace is removed (only if as.Keep does not contain it).
+// 8. N-slowest trace collections that are in pre-storage:
+//   - Removed from pre-storage.
+//   - Placed into output MemoryStore.
+// 9. Phony aggregation trace/ID update:
+//   - Old one is removed from output MemoryStore.
+//   - New one with updated Slowest TraceID's is inserted into output MemoryStore.
+
 // AggregateStore aggregates timespan events into groups based on the root span
 // name. Much like a RecentStore, it evicts aggregated events after a certain
 // time period.
