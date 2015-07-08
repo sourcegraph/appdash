@@ -11,20 +11,6 @@ var _ = EventMarshaler(AggregateEvent{})
 var _ = EventUnmarshaler(AggregateEvent{})
 var _ = Event(AggregateEvent{})
 
-// fakeTimespan represents a fake timespan event, and is used for the tests
-// below.
-type fakeTimespan struct {
-	S, E time.Time
-}
-
-func (f fakeTimespan) Schema() string   { return "fake" }
-func (f fakeTimespan) Start() time.Time { return f.S }
-func (f fakeTimespan) End() time.Time   { return f.E }
-
-var _ = TimespanEvent(fakeTimespan{})
-
-func init() { RegisterEvent(fakeTimespan{}) }
-
 // TestAggregateStore tests basic AggregateStore functionality.
 func TestAggregateStore(t *testing.T) {
 	// Create an aggregate store.
@@ -41,7 +27,7 @@ func TestAggregateStore(t *testing.T) {
 		root := NewRootSpanID()
 		rec := NewRecorder(root, as)
 		rec.Name("the-trace-name")
-		e := fakeTimespan{
+		e := timespanEvent{
 			S: time.Now().Add(time.Duration(-i) * time.Minute),
 			E: time.Now(),
 		}
@@ -112,7 +98,7 @@ func TestAggregateStoreNSlowest(t *testing.T) {
 			root := NewRootSpanID()
 			rec := NewRecorder(root, as)
 			rec.Name("the-trace-name")
-			e := fakeTimespan{
+			e := timespanEvent{
 				S: now,
 				E: now.Add(times[i]),
 			}
@@ -227,7 +213,7 @@ func TestAggregateStoreMinEvictAge(t *testing.T) {
 		root := NewRootSpanID()
 		rec := NewRecorder(root, as)
 		rec.Name("the-trace-name")
-		e := fakeTimespan{
+		e := timespanEvent{
 			S: time.Now().Add(time.Duration(-i) * time.Minute),
 			E: time.Now(),
 		}
