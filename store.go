@@ -247,6 +247,35 @@ func (ms *MemoryStore) deleteNoLock(traces ...ID) error {
 	return nil
 }
 
+// deleteSubNoLock deletes the given subspan from this in-memory store. If
+// annotationsOnly == true then only the annotations from the span are deleted.
+//
+// TODO(slimsag): not general purpose / cannot handle removal of deep subspans
+// (e.g. Root->Sub->Sub). This is not important for our uses in AggregateStore,
+// however, as it uses only one level deep subspans.
+func (ms *MemoryStore) deleteSubNoLock(s SpanID, annotationsOnly bool) bool {
+	if sub, ok := ms.span[s.Trace]; ok {
+		if tr, ok := sub[s.Span]; ok {
+			tr.Annotations = nil
+
+			if !annotationsOnly {
+				delete(sub, s.Span)
+
+				// Remove from root *Trace.Sub slice, too.
+				root := ms.trace[s.Trace]
+				for i, t := range root.Sub {
+					if t != tr {
+						continue
+					}
+					root.Sub = append(root.Sub[:i], root.Sub[i+1:]...)
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
 type memoryStoreData struct {
 	Trace map[ID]*Trace
 	Span  map[ID]map[ID]*Trace
