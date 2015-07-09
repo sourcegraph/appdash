@@ -66,11 +66,13 @@ func (t *Trace) IsAggregate() bool {
 	return walk(t)
 }
 
-// Aggregated returns a slice of aggregate events found in this trace.
-func (t *Trace) Aggregated() ([]AggregateEvent, error) {
+// Aggregated returns the aggregate event (or nil if none is found) along with
+// all of the TimespanEvents found in this trace.
+func (t *Trace) Aggregated() (*AggregateEvent, []TimespanEvent, error) {
 	var (
-		agg  []AggregateEvent
-		walk func(t *Trace) error
+		agg       *AggregateEvent
+		timespans []TimespanEvent
+		walk      func(t *Trace) error
 	)
 	walk = func(t *Trace) error {
 		var evs []Event
@@ -80,7 +82,9 @@ func (t *Trace) Aggregated() ([]AggregateEvent, error) {
 		}
 		for _, ev := range evs {
 			if a, ok := ev.(AggregateEvent); ok {
-				agg = append(agg, a)
+				agg = &a
+			} else if t, ok := ev.(TimespanEvent); ok {
+				timespans = append(timespans, t)
 			}
 		}
 		for _, sub := range t.Sub {
@@ -91,9 +95,9 @@ func (t *Trace) Aggregated() ([]AggregateEvent, error) {
 		return nil
 	}
 	if err := walk(t); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return agg, nil
+	return agg, timespans, nil
 }
 
 func (t *Trace) treeString(w io.Writer, depth int) {

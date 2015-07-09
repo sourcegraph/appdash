@@ -50,24 +50,24 @@ func TestAggregateStore(t *testing.T) {
 	}
 
 	// Verify we have the aggregated trace events.
-	var agg []AggregateEvent
+	var agg *AggregateEvent
 	for _, tr := range traces {
-		evs, err := tr.Aggregated()
+		ev, _, err := tr.Aggregated()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(evs) > 0 {
-			agg = evs
+		if ev != nil {
+			agg = ev
 		}
 	}
-	if len(agg) != 1 {
-		t.Fatalf("expected 1 aggregated trace event, found %d", len(agg))
+	if agg == nil {
+		t.Fatalf("expected 1 aggregated trace event, found nil")
 	}
 
 	// Verify we have the N-slowest other full traces.
 	var found []ID
 	for _, t := range traces {
-		for _, want := range agg[0].Slowest {
+		for _, want := range agg.Slowest {
 			if t.Span.ID.Trace == want {
 				found = append(found, want)
 			}
@@ -121,23 +121,23 @@ func TestAggregateStoreNSlowest(t *testing.T) {
 		}
 
 		// Verify we have the aggregated trace events.
-		var agg []AggregateEvent
+		var agg *AggregateEvent
 		for _, tr := range traces {
-			evs, err := tr.Aggregated()
+			ev, _, err := tr.Aggregated()
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(evs) > 0 {
-				agg = evs
+			if ev != nil {
+				agg = ev
 			}
 		}
-		if len(agg) != 1 {
-			t.Fatalf("expected 1 aggregated trace event, found %d", len(agg))
+		if agg == nil {
+			t.Fatalf("expected 1 aggregated trace event, found nil")
 		}
 
 		// Determine time of each slowest trace.
 		var d []time.Duration
-		for _, slowest := range agg[0].Slowest {
+		for _, slowest := range agg.Slowest {
 			st, err := ms.Trace(slowest)
 			if err != nil {
 				t.Fatal(err)
