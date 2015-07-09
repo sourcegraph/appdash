@@ -160,24 +160,18 @@ search:
 // The AggregateStore collection process can be described as follows:
 //
 // 1. Collection on AggregateStore occurs.
-// 2. Collection is sent directly to Keep.
-//   - This way as.Keep is aware of all collections that went through us.
-//   - In steps 4 and 7, we'll ask if as.Keep wants us to keep the trace.
-//     - If so, we keep it and never delete it (its as.Keeps responsibility).
-//   - When as.Keep is done with it (e.g. it's not recent), it will delete it from our output MemoryStore.
 // 3. Collection is sent directly to pre-storage
 //   - i.e. LimitStore backed by its own MemoryStore.
 // 4. Eviction runs if needed.
 //   - Every group has an eviction process ran; removes times older than 72/hrs.
 //   - Each N-slowest trace in the group older than 72hr is evicted from output.
-//     - Only if as.Keep does not contain it.
 //   - Empty span groups (no trace over past 72/hr) are removed entirely.
 // 5. Find a group for the collection
 //   - Only succeeds if a spanName has or is being been collected.
 //   - Otherwise collections end up in pre-storage until we get the spanName.
 // 6. Collection is unmarshaled into a set of events, trace time is determined.
 // 7. Group is updated to consider the collection as being one of the N-slowest.
-//   - Older N-slowest trace is removed (only if as.Keep does not contain it).
+//   - Older N-slowest trace is removed.
 // 8. N-slowest trace collections that are in pre-storage:
 //   - Removed from pre-storage.
 //   - Placed into output MemoryStore.
@@ -217,17 +211,6 @@ type AggregateStore struct {
 	// deleted from. It is the final destination for traces.
 	*MemoryStore
 
-	// Keep is a store that is sent each collection directly if non-nil. Once a
-	// trace would be evicted from the MemoryStore (i.e. if it's no longer one
-	// of the N-slowest traces for a group), this store is queried for the
-	// trace. If the trace exists the trace is kept in the memory store,
-	// otherwise it is deleted.
-	//
-	// This field is useful for saying "keep the N slowest traces AND all traces
-	// in the past 15 minutes (by setting Keep == RecentStore)", likewise it can
-	// be used with LimitStore, etc.
-	Keep Store
-
 	mu           sync.Mutex
 	groups       map[ID]*spanGroup // map of trace ID to span group.
 	insertTimes  map[ID]time.Time  // map of times that groups was inserted into at
@@ -257,14 +240,6 @@ func NewAggregateStore() *AggregateStore {
 // Collect calls the underlying store's Collect, deleting the oldest
 // trace if the capacity has been reached.
 func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
-	// Send collections directly to Keep, as promised.
-	if as.Keep != nil {
-		err := as.Keep.Collect(id, anns...)
-		if err != nil {
-			return err
-		}
-	}
-
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
@@ -457,20 +432,9 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	return nil
 }
 
-// deleteOutput deletes the given traces from the output memory store. If
-// as.Keep is not nil and it has a trace still, it is kept rather than deleted.
+// deleteOutput deletes the given traces from the output memory store.
 func (as *AggregateStore) deleteOutput(traces ...ID) error {
 	for _, trace := range traces {
-		if as.Keep != nil {
-			// Find the trace in the keep store.
-			_, err := as.Keep.Trace(trace)
-			if err == nil {
-				// We found it, and so we keep the trace.
-				return nil
-			} else if err != ErrTraceNotFound {
-				return err
-			}
-		}
 		if err := as.MemoryStore.Delete(trace); err != nil {
 			return err
 		}
