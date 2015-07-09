@@ -111,6 +111,33 @@ func TestMemoryStore_Collect_oneChild(t *testing.T) {
 	}
 }
 
+func TestMemoryStore_deleteSubNoLock(t *testing.T) {
+	s := NewMemoryStore()
+	ms := storeT{t, s}
+
+	// Collect trace / root span.
+	ms.MustCollect(SpanID{1, 1, 0})
+
+	// Collect child span.
+	childSpanID := SpanID{1, 2, 1}
+	ms.MustCollect(childSpanID)
+
+	// Validate that removal of the child span functions properly.
+	s.Lock()
+	if !s.deleteSubNoLock(childSpanID, false) {
+		t.Fatal("failed to delete subspan")
+	}
+	s.Unlock()
+
+	want1 := &Trace{
+		Span: Span{ID: SpanID{1, 1, 0}},
+		Sub:  []*Trace{},
+	}
+	if x := ms.MustTrace(1); !reflect.DeepEqual(x, want1) {
+		t.Errorf("Trace(1): got trace %+v, want %+v", x, want1)
+	}
+}
+
 func TestMemoryStore_Collect_childCollectedBeforeRoot(t *testing.T) {
 	ms := storeT{t, NewMemoryStore()}
 
