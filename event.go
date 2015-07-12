@@ -125,6 +125,7 @@ func init() {
 	RegisterEvent(spanName{})
 	RegisterEvent(logEvent{})
 	RegisterEvent(msgEvent{})
+	RegisterEvent(timespanEvent{})
 }
 
 // UnmarshalEvents unmarshals all events found in anns into
@@ -168,6 +169,15 @@ type TimespanEvent interface {
 	Start() time.Time
 	End() time.Time
 }
+
+// timespanEvent implements the TimespanEvent interface.
+type timespanEvent struct {
+	S, E time.Time
+}
+
+func (timespanEvent) Schema() string      { return "timespan" }
+func (ev timespanEvent) Start() time.Time { return ev.S }
+func (ev timespanEvent) End() time.Time   { return ev.E }
 
 // A TimestampedEvent is an Event with a timestamp.
 type TimestampedEvent interface {

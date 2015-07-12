@@ -20,10 +20,6 @@ type AggregateEvent struct {
 	// The root span name of every item in this aggregated set of timespan events.
 	Name string
 
-	// Every root span start and end time, from which other information can be
-	// calculated.
-	Times [][2]time.Time
-
 	// Trace IDs for the slowest of the above times (useful for inspection).
 	Slowest []ID
 }
@@ -78,10 +74,11 @@ func (s spanGroupSlowest) empty() bool {
 type spanGroup struct {
 	// Trace is the trace ID that the generated AggregateEvent has been placed
 	// into for collection.
-	Trace   ID
-	Name    string             // Root span name (e.g. the route for httptrace).
-	Times   [][2]time.Time     // Aggregated timespans for the traces.
-	Slowest []spanGroupSlowest // N-slowest traces in the group.
+	Trace     SpanID
+	Name      string             // Root span name (e.g. the route for httptrace).
+	Times     [][2]time.Time     // Aggregated timespans for the traces.
+	TimeSpans []ID               // SpanID.Span of each associated TimespanEvent for the Times slice
+	Slowest   []spanGroupSlowest // N-slowest traces in the group.
 }
 
 func (s spanGroup) Len() int      { return len(s.Slowest) }
@@ -96,9 +93,11 @@ func (s spanGroup) Less(i, j int) bool {
 }
 
 // update updates the span group to account for a potentially slowest trace,
-// returning whether or not the given trace was indeed slowest.
-func (s *spanGroup) update(start, end time.Time, trace ID, remove func(trace ID)) bool {
+// returning whether or not the given trace was indeed slowest. The timespan ID
+// is the SpanID.Span of the TimespanEvent for future removal upon eviction.
+func (s *spanGroup) update(start, end time.Time, timespan ID, trace ID, remove func(trace ID)) bool {
 	s.Times = append(s.Times, [2]time.Time{start, end})
+	s.TimeSpans = append(s.TimeSpans, timespan)
 
 	// The s.Slowest list is kept sorted from slowest to fastest. As we want to
 	// steal the slot from the fastest (or zero) one we iterate over it
@@ -135,12 +134,19 @@ func (s *spanGroup) update(start, end time.Time, trace ID, remove func(trace ID)
 }
 
 // evictBefore evicts all times in the group
-func (s *spanGroup) evictBefore(tnano int64, debug bool) {
+func (s *spanGroup) evictBefore(tnano int64, debug bool, deleteSub func(s SpanID)) {
 	count := 0
 search:
 	for i, ts := range s.Times {
 		if ts[0].UnixNano() < tnano {
 			s.Times = append(s.Times[:i], s.Times[i+1:]...)
+
+			// Remove the associated subspan holding the TimespanEvent in the
+			// output MemoryStore.
+			id := s.TimeSpans[i]
+			s.TimeSpans = append(s.TimeSpans[:i], s.TimeSpans[i+1:]...)
+			deleteSub(SpanID{Trace: s.Trace.Trace, Span: id, Parent: s.Trace.Span})
+
 			count++
 			goto search
 		}
@@ -150,6 +156,31 @@ search:
 		log.Printf("AggregateStore: evicted %d timespans from the group %q", count, s.Name)
 	}
 }
+
+// The AggregateStore collection process can be described as follows:
+//
+// 1. Collection on AggregateStore occurs.
+// 3. Collection is sent directly to pre-storage
+//   - i.e. LimitStore backed by its own MemoryStore.
+// 4. Eviction runs if needed.
+//   - Every group has an eviction process ran; removes times older than 72/hrs.
+//   - Each N-slowest trace in the group older than 72hr is evicted from output.
+//   - Empty span groups (no trace over past 72/hr) are removed entirely.
+// 5. Find a group for the collection
+//   - Only succeeds if a spanName has or is being been collected.
+//   - Otherwise collections end up in pre-storage until we get the spanName.
+// 6. Collection is unmarshaled into a set of events, trace time is determined.
+// 7. Group is updated to consider the collection as being one of the N-slowest.
+//   - Older N-slowest trace is removed.
+// 8. N-slowest trace collections that are in pre-storage:
+//   - Removed from pre-storage.
+//   - Placed into output MemoryStore.
+// 9. Data Storage
+//   - Aggregation data is stored as a phony trace (so same storage backends can be used).
+//   - The old AggregationEvent is removed from output MemoryStore.
+//   - The new AggregationEvent with updated N-slowest trace IDs is inserted.
+//   - A TimespanEvent (subspan) is recorded into the trace.
+//     - Not stored in AggregationEvent as a slice (because O(N) vs O(1) performance for updates).
 
 // AggregateStore aggregates timespan events into groups based on the root span
 // name. Much like a RecentStore, it evicts aggregated events after a certain
@@ -180,17 +211,6 @@ type AggregateStore struct {
 	// deleted from. It is the final destination for traces.
 	*MemoryStore
 
-	// Keep is a store that is sent each collection directly if non-nil. Once a
-	// trace would be evicted from the MemoryStore (i.e. if it's no longer one
-	// of the N-slowest traces for a group), this store is queried for the
-	// trace. If the trace exists the trace is kept in the memory store,
-	// otherwise it is deleted.
-	//
-	// This field is useful for saying "keep the N slowest traces AND all traces
-	// in the past 15 minutes (by setting Keep == RecentStore)", likewise it can
-	// be used with LimitStore, etc.
-	Keep Store
-
 	mu           sync.Mutex
 	groups       map[ID]*spanGroup // map of trace ID to span group.
 	insertTimes  map[ID]time.Time  // map of times that groups was inserted into at
@@ -220,14 +240,6 @@ func NewAggregateStore() *AggregateStore {
 // Collect calls the underlying store's Collect, deleting the oldest
 // trace if the capacity has been reached.
 func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
-	// Send collections directly to Keep, as promised.
-	if as.Keep != nil {
-		err := as.Keep.Collect(id, anns...)
-		if err != nil {
-			return err
-		}
-	}
-
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
@@ -292,7 +304,16 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 
 	// Consider eviction of old data.
 	if time.Since(as.lastEvicted) > as.MinEvictAge {
-		if err := as.evictBefore(time.Now().Add(-1 * as.MinEvictAge)); err != nil {
+		// Function for evictBefore to invoke when removing TimespanEvents that
+		// we've previously stored in the output MemoryStore.
+		deleteSub := func(id SpanID) {
+			as.MemoryStore.Lock()
+			if !as.MemoryStore.deleteSubNoLock(id, false) {
+				panic("failed to delete spanID")
+			}
+			as.MemoryStore.Unlock()
+		}
+		if err := as.evictBefore(time.Now().Add(-1*as.MinEvictAge), deleteSub); err != nil {
 			return err
 		}
 	}
@@ -319,7 +340,8 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 	}
 
 	// Update the group to consider this trace being one of the slowest.
-	group.update(eStart, eEnd, id.Trace, func(trace ID) {
+	timespanID := NewSpanID(group.Trace)
+	group.update(eStart, eEnd, timespanID.Span, id.Trace, func(trace ID) {
 		// Delete the request trace from the output store.
 		if err := as.deleteOutput(trace); err != nil {
 			log.Printf("AggregateStore: failed to delete a trace: %s", err)
@@ -364,8 +386,7 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 
 	// Prepare the aggregation event (before locking below).
 	ev := &AggregateEvent{
-		Name:  group.Name,
-		Times: group.Times,
+		Name: group.Name,
 	}
 	for _, slowest := range group.Slowest {
 		if !slowest.empty() {
@@ -376,46 +397,44 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 		log.Printf("AggregateStore: no slowest traces for group %q (consider increasing MaxRate)", group.Name)
 	}
 
+	// Prepare the timespan event (also before locking below).
+	tev := &timespanEvent{
+		S: eStart,
+		E: eEnd,
+	}
+
 	// As we're updating the aggregation event, we go ahead and delete the old
 	// one now. We do this all under as.MemoryStore.Lock otherwise users (e.g. the
 	// web UI) can pull from as.MemoryStore when the trace has been deleted.
 	as.MemoryStore.Lock()
 	defer as.MemoryStore.Unlock()
-	if err := as.MemoryStore.deleteNoLock(group.Trace); err != nil {
-		return err
-	}
+	as.MemoryStore.deleteSubNoLock(group.Trace, true)
 
 	// Record an aggregate event with the given name.
-	recEvent := func(e Event) error {
+	recEvent := func(e Event, spanID SpanID) error {
 		anns, err := MarshalEvent(e)
 		if err != nil {
 			return err
 		}
-		return as.MemoryStore.collectNoLock(SpanID{Trace: group.Trace}, anns...)
+		return as.MemoryStore.collectNoLock(spanID, anns...)
 	}
-	if err := recEvent(spanName{Name: group.Name}); err != nil {
+	if err := recEvent(spanName{Name: group.Name}, group.Trace); err != nil {
 		return err
 	}
-	if err := recEvent(ev); err != nil {
+	if err := recEvent(ev, group.Trace); err != nil {
+		return err
+	}
+
+	// Record the timespan event as a subspan of the aggregation event.
+	if err := recEvent(tev, timespanID); err != nil {
 		return err
 	}
 	return nil
 }
 
-// deleteOutput deletes the given traces from the output memory store. If
-// as.Keep is not nil and it has a trace still, it is kept rather than deleted.
+// deleteOutput deletes the given traces from the output memory store.
 func (as *AggregateStore) deleteOutput(traces ...ID) error {
 	for _, trace := range traces {
-		if as.Keep != nil {
-			// Find the trace in the keep store.
-			_, err := as.Keep.Trace(trace)
-			if err == nil {
-				// We found it, and so we keep the trace.
-				return nil
-			} else if err != ErrTraceNotFound {
-				return err
-			}
-		}
 		if err := as.MemoryStore.Delete(trace); err != nil {
 			return err
 		}
@@ -456,7 +475,7 @@ func (as *AggregateStore) group(id SpanID, anns ...Annotation) (*spanGroup, bool
 	// Create a new group, and associate our trace with it.
 	group := &spanGroup{
 		Name:    name.Name,
-		Trace:   NewRootSpanID().Trace, //id.Trace,
+		Trace:   NewRootSpanID(),
 		Slowest: make([]spanGroupSlowest, as.NSlowest),
 	}
 	as.groups[id.Trace] = group
@@ -496,7 +515,7 @@ func (as *AggregateStore) clearGroups() {
 // evictBefore evicts aggregation events that were created before t.
 //
 // The as.mu lock must be held for this method to operate safely.
-func (as *AggregateStore) evictBefore(t time.Time) error {
+func (as *AggregateStore) evictBefore(t time.Time, deleteSub func(id SpanID)) error {
 	evictStart := time.Now()
 	as.lastEvicted = evictStart
 	tnano := t.UnixNano()
@@ -504,7 +523,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 	// Build a list of aggregation events to evict.
 	var toEvict []ID
 	for _, group := range as.groups {
-		group.evictBefore(tnano, as.Debug)
+		group.evictBefore(tnano, as.Debug, deleteSub)
 
 	searchSlowest:
 		for i, sm := range group.Slowest {
@@ -530,7 +549,7 @@ func (as *AggregateStore) evictBefore(t time.Time) error {
 		delete(as.groupsByName, group.Name)
 
 		// Also request removal of the group (AggregateEvent) from the output store.
-		err := as.deleteOutput(group.Trace)
+		err := as.deleteOutput(group.Trace.Trace)
 		if err != nil {
 			return err
 		}

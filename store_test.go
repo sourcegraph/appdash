@@ -111,6 +111,33 @@ func TestMemoryStore_Collect_oneChild(t *testing.T) {
 	}
 }
 
+func TestMemoryStore_deleteSubNoLock(t *testing.T) {
+	s := NewMemoryStore()
+	ms := storeT{t, s}
+
+	// Collect trace / root span.
+	ms.MustCollect(SpanID{1, 1, 0})
+
+	// Collect child span.
+	childSpanID := SpanID{1, 2, 1}
+	ms.MustCollect(childSpanID)
+
+	// Validate that removal of the child span functions properly.
+	s.Lock()
+	if !s.deleteSubNoLock(childSpanID, false) {
+		t.Fatal("failed to delete subspan")
+	}
+	s.Unlock()
+
+	want1 := &Trace{
+		Span: Span{ID: SpanID{1, 1, 0}},
+		Sub:  []*Trace{},
+	}
+	if x := ms.MustTrace(1); !reflect.DeepEqual(x, want1) {
+		t.Errorf("Trace(1): got trace %+v, want %+v", x, want1)
+	}
+}
+
 func TestMemoryStore_Collect_childCollectedBeforeRoot(t *testing.T) {
 	ms := storeT{t, NewMemoryStore()}
 
@@ -502,15 +529,48 @@ func BenchmarkMemoryStoreReadFrom1000(b *testing.B) {
 }
 
 func BenchmarkRecentStore500(b *testing.B) {
+	const (
+		nCollections = 500
+		nAnnotations = 100
+	)
 	rs := &RecentStore{
 		DeleteStore: NewMemoryStore(),
 		MinEvictAge: 20 * time.Second,
 	}
 	var x ID
 	for i := 0; i < b.N; i++ {
-		for c := 0; c < 500; c++ {
+		for c := 0; c < nCollections; c++ {
 			x++
-			err := rs.Collect(SpanID{x, 2, 3})
+			anns := make([]Annotation, nAnnotations)
+			for a := range anns {
+				anns[a] = Annotation{"k1", []byte("v1")}
+			}
+			err := rs.Collect(SpanID{x, 2, 3}, anns...)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+func BenchmarkLimitStore500(b *testing.B) {
+	const (
+		nCollections = 500
+		nAnnotations = 100
+	)
+	rs := &LimitStore{
+		DeleteStore: NewMemoryStore(),
+		Max:         2000,
+	}
+	var x ID
+	for i := 0; i < b.N; i++ {
+		for c := 0; c < nCollections; c++ {
+			x++
+			anns := make([]Annotation, nAnnotations)
+			for a := range anns {
+				anns[a] = Annotation{"k1", []byte("v1")}
+			}
+			err := rs.Collect(SpanID{x, 2, 3}, anns...)
 			if err != nil {
 				b.Fatal(err)
 			}

@@ -23,20 +23,20 @@ type dashboardRow struct {
 }
 
 // newDashboardRow returns a new dashboard row with it's items calculated from
-// the given aggregation event (the returned row represents the whole
-// aggregation event).
+// the given aggregation event and timespan events (the returned row represents
+// the whole aggregation event).
 //
 // The returned row does not have the URL field set.
-func newDashboardRow(a appdash.AggregateEvent) dashboardRow {
+func newDashboardRow(a appdash.AggregateEvent, timespans []appdash.TimespanEvent) dashboardRow {
 	row := dashboardRow{
 		Name:      a.Name,
-		Timespans: len(a.Times),
+		Timespans: len(timespans),
 	}
 
 	// Calculate sum and mean (row.Average), while determining min/max.
 	sum := big.NewInt(0)
-	for _, ts := range a.Times {
-		d := ts[1].Sub(ts[0])
+	for _, ts := range timespans {
+		d := ts.End().Sub(ts.Start())
 		sum.Add(sum, big.NewInt(int64(d)))
 		if row.Min == 0 || d < row.Min {
 			row.Min = d
@@ -45,17 +45,17 @@ func newDashboardRow(a appdash.AggregateEvent) dashboardRow {
 			row.Max = d
 		}
 	}
-	avg := big.NewInt(0).Div(sum, big.NewInt(int64(len(a.Times))))
+	avg := big.NewInt(0).Div(sum, big.NewInt(int64(len(timespans))))
 	row.Average = time.Duration(avg.Int64())
 
 	// Calculate std. deviation.
 	sqDiffSum := big.NewInt(0)
-	for _, ts := range a.Times {
-		d := ts[1].Sub(ts[0])
+	for _, ts := range timespans {
+		d := ts.End().Sub(ts.Start())
 		diff := big.NewInt(0).Sub(big.NewInt(int64(d)), avg)
 		sqDiffSum.Add(sqDiffSum, diff.Mul(diff, diff))
 	}
-	stdDev := big.NewInt(0).Div(sqDiffSum, big.NewInt(int64(len(a.Times))))
+	stdDev := big.NewInt(0).Div(sqDiffSum, big.NewInt(int64(len(timespans))))
 	stdDev = mathutil.SqrtBig(stdDev)
 	row.StdDev = time.Duration(stdDev.Int64())
 
@@ -74,21 +74,21 @@ func newDashboardRow(a appdash.AggregateEvent) dashboardRow {
 
 // aggTimeFilter removes timespans and slowest-trace IDs from the given
 // aggregate event if they were not defined inside the given start and end time.
-func aggTimeFilter(a appdash.AggregateEvent, start, end time.Time) (appdash.AggregateEvent, bool) {
+func aggTimeFilter(a appdash.AggregateEvent, timespans []appdash.TimespanEvent, start, end time.Time) (appdash.AggregateEvent, []appdash.TimespanEvent, bool) {
 	cpy := a
-	cpy.Times = nil
 	cpy.Slowest = nil
-	for n, ts := range a.Times {
-		if ts[0].UnixNano() < start.UnixNano() || ts[1].UnixNano() > end.UnixNano() {
+	var cpyTimes []appdash.TimespanEvent
+	for n, ts := range timespans {
+		if ts.Start().UnixNano() < start.UnixNano() || ts.End().UnixNano() > end.UnixNano() {
 			// It started before or after the time period we want.
 			continue
 		}
-		cpy.Times = append(cpy.Times, ts)
+		cpyTimes = append(cpyTimes, ts)
 		if n < len(a.Slowest) {
 			cpy.Slowest = append(cpy.Slowest, a.Slowest[n])
 		}
 	}
-	return cpy, len(cpy.Times) > 0
+	return cpy, cpyTimes, len(cpyTimes) > 0
 }
 
 // serverDashboard serves the dashboard page.
@@ -148,33 +148,33 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 
 	// Produce the rows of data.
 	for _, trace := range traces {
-		// Grab the aggregation events from the trace, if any.
-		agg, err := trace.Aggregated()
+		// Grab the aggregation event from the trace, if any.
+		agg, timespans, err := trace.Aggregated()
 		if err != nil {
 			return err
 		}
-
-		// Produce one row for each aggregation event.
-		for _, a := range agg {
-			// Filter the event by our timeline.
-			a, any := aggTimeFilter(a, start, end)
-			if !any {
-				continue
-			}
-
-			// Create a list of slowest trace IDs (but as strings), then produce a
-			// URL which will query for it.
-			var stringIDs []string
-			for _, slowest := range a.Slowest {
-				stringIDs = append(stringIDs, slowest.String())
-			}
-			tracesURL.RawQuery = "show=" + strings.Join(stringIDs, ",")
-
-			// Create the row of data.
-			row := newDashboardRow(a)
-			row.URL = tracesURL.String()
-			rows = append(rows, row)
+		if agg == nil {
+			continue // No aggregation event.
 		}
+
+		// Filter the event by our timeline.
+		a, timespans, any := aggTimeFilter(*agg, timespans, start, end)
+		if !any {
+			continue
+		}
+
+		// Create a list of slowest trace IDs (but as strings), then produce a
+		// URL which will query for it.
+		var stringIDs []string
+		for _, slowest := range a.Slowest {
+			stringIDs = append(stringIDs, slowest.String())
+		}
+		tracesURL.RawQuery = "show=" + strings.Join(stringIDs, ",")
+
+		// Create the row of data.
+		row := newDashboardRow(a, timespans)
+		row.URL = tracesURL.String()
+		rows = append(rows, row)
 	}
 
 	// Encode to JSON.
