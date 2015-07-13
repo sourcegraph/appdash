@@ -19,8 +19,8 @@ import (
 // Effectively, the client may request the server to allocate a buffer of up to
 // maxMessageSize -- so choose carefully.
 //
-// We use 32KiB here.
-const maxMessageSize = 32 * 1024
+// We use 1MB here.
+const maxMessageSize = 1 * 1024 * 1024
 
 // A Collector collects events that occur in spans.
 type Collector interface {
