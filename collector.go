@@ -61,11 +61,9 @@ type ChunkedCollector struct {
 	started, stopped bool
 	stopChan         chan struct{}
 
-	pending         []SpanID
 	pendingBySpanID map[SpanID]Annotations
 
-	// mu protects pending, pendingBySpanID, lastErr, started,
-	// stopped, and stopChan.
+	// mu protects pendingBySpanID, lastErr, started, stopped, and stopChan.
 	mu sync.Mutex
 }
 
@@ -93,7 +91,6 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 		}
 	} else {
 		cc.pendingBySpanID[span] = anns
-		cc.pending = append(cc.pending, span)
 	}
 
 	if err := cc.lastErr; err != nil {
@@ -108,14 +105,11 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 func (cc *ChunkedCollector) Flush() error {
 	cc.mu.Lock()
 	pendingBySpanID := cc.pendingBySpanID
-	pending := cc.pending
 	cc.pendingBySpanID = nil
-	cc.pending = nil
 	cc.mu.Unlock()
 
 	var errs []error
-	for _, spanID := range pending {
-		p := pendingBySpanID[spanID]
+	for spanID, p := range pendingBySpanID {
 		if err := cc.Collector.Collect(spanID, p...); err != nil {
 			errs = append(errs, err)
 		}
