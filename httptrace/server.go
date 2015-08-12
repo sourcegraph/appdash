@@ -165,3 +165,9 @@ func (r *responseInfoRecorder) partialResponse() *http.Response {
 		Header:        r.Header(),
 	}
 }
+
+func (r *responseInfoRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
