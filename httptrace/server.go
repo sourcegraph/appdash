@@ -166,6 +166,9 @@ func (r *responseInfoRecorder) partialResponse() *http.Response {
 	}
 }
 
+// Flush implements the http.Flusher interface and sends any buffered
+// data to the client, if the underlying http.ResponseWriter itself
+// implements http.Flusher.
 func (r *responseInfoRecorder) Flush() {
 	if f, ok := r.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
