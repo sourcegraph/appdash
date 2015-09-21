@@ -23,7 +23,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/mux"
 
 	"sourcegraph.com/sourcegraph/appdash"
@@ -63,11 +62,7 @@ func New(r *Router) *App {
 	r.r.Get(AggregateRoute).Handler(handlerFunc(app.serveAggregate))
 
 	// Static file serving.
-	r.r.Get(StaticRoute).Handler(http.StripPrefix("/static/", http.FileServer(&assetfs.AssetFS{
-		Asset:    static.Asset,
-		AssetDir: static.AssetDir,
-		Prefix:   "",
-	})))
+	r.r.Get(StaticRoute).Handler(http.StripPrefix("/static/", http.FileServer(static.Data)))
 
 	return app
 }
