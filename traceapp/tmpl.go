@@ -98,7 +98,7 @@ func (a *App) parseHTMLTemplates(sets [][]string) error {
 			"dict":              dict,
 		})
 		for _, tmp := range set {
-			tmplFile, err := tmpl.Assets.Open("/" + tmp)
+			tmplFile, err := tmpl.Data.Open("/" + tmp)
 			if err != nil {
 				return fmt.Errorf("template %v: %s", set, err)
 			}
