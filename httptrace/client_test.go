@@ -54,7 +54,6 @@ func TestNewClientEvent(t *testing.T) {
 		"Client.Send":                          "0001-01-01T00:00:00Z",
 		"Client.Recv":                          "0001-01-01T00:00:00Z",
 	}
-
 	if !reflect.DeepEqual(anns.StringMap(), expected) {
 		t.Errorf("got %#v, want %#v", anns.StringMap(), expected)
 	}
