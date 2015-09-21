@@ -10,11 +10,10 @@ import (
 )
 
 func main() {
-	err := vfsgen.Generate(tmpl.Assets, vfsgen.Options{
-		Filename:     "data.go",
+	err := vfsgen.Generate(tmpl.Data, vfsgen.Options{
 		PackageName:  "tmpl",
 		BuildTags:    "!dev",
-		VariableName: "Assets",
+		VariableName: "Data",
 	})
 	if err != nil {
 		log.Fatalln(err)
