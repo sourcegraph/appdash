@@ -35,10 +35,10 @@ Questions or comments? Join us [on Slack](http://slackin.srclib.org/)!
 
 ## Development
 
-Appdash uses [go-bindata](https://github.com/jteeuwen/go-bindata) to package HTML templates with the appdash binary for
-distribution. This means that if you want to modify the template data in `traceapp/tmpl` you'll need to first build using the `dev` build tag, which makes the template data be reloaded from disk live.
+Appdash uses [vfsgen](https://github.com/shurcooL/vfsgen) to package HTML templates with the appdash binary for
+distribution. This means that if you want to modify the template data in `traceapp/tmpl` you can first build using the `dev` build tag, which makes the template data be reloaded from disk live.
 
-After you're finished making changes to the templates, always run `go generate` so that the `data.go` file is updated for normal Appdash users that aren't interested in modifying the template data.
+After you're finished making changes to the templates, always run `go generate sourcegraph.com/sourcegraph/appdash/traceapp/tmpl` so that the `data.go` file is updated for normal Appdash users that aren't interested in modifying the template data.
 
 ## Components
 
