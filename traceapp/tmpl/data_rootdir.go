@@ -13,7 +13,7 @@ import (
 var rootDir = filepath.Join(defaultBase("sourcegraph.com/sourcegraph/appdash/traceapp"), "tmpl")
 
 func defaultBase(path string) string {
-	p, err := build.Default.Import(path, "", build.FindOnly)
+	p, err := build.Import(path, "", build.FindOnly)
 	if err != nil {
 		log.Fatal(err)
 	}

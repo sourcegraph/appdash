@@ -4,7 +4,7 @@
 // cmd/appdash) or via embedding this package within your app.
 //
 // Templates and other resources needed by this package to render the UI are
-// built into the program using go-bindata, so you still get to have single
+// built into the program using vfsgen, so you still get to have single
 // binary deployment.
 //
 // For an example of embedding the Appdash web UI within your own application
