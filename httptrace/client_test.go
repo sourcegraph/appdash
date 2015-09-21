@@ -39,21 +39,22 @@ func TestNewClientEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected := map[string]string{
-		"_schema:HTTPClient":            "",
-		"Request.Headers.Connection":    "close",
-		"Request.Headers.Accept":        "application/json",
-		"Request.Headers.Authorization": "REDACTED",
-		"Request.Proto":                 "HTTP/1.1",
-		"Request.RemoteAddr":            "127.0.0.1",
-		"Request.Host":                  "example.com",
-		"Request.ContentLength":         "0",
-		"Request.Method":                "GET",
-		"Request.URI":                   "/foo",
-		"Response.StatusCode":           "200",
-		"Response.ContentLength":        "0",
-		"ClientSend":                    "0001-01-01T00:00:00Z",
-		"ClientRecv":                    "0001-01-01T00:00:00Z",
+		"_schema:HTTPClient":                   "",
+		"Client.Request.Headers.Connection":    "close",
+		"Client.Request.Headers.Accept":        "application/json",
+		"Client.Request.Headers.Authorization": "REDACTED",
+		"Client.Request.Proto":                 "HTTP/1.1",
+		"Client.Request.RemoteAddr":            "127.0.0.1",
+		"Client.Request.Host":                  "example.com",
+		"Client.Request.ContentLength":         "0",
+		"Client.Request.Method":                "GET",
+		"Client.Request.URI":                   "/foo",
+		"Client.Response.StatusCode":           "200",
+		"Client.Response.ContentLength":        "0",
+		"Client.Send":                          "0001-01-01T00:00:00Z",
+		"Client.Recv":                          "0001-01-01T00:00:00Z",
 	}
+
 	if !reflect.DeepEqual(anns.StringMap(), expected) {
 		t.Errorf("got %#v, want %#v", anns.StringMap(), expected)
 	}

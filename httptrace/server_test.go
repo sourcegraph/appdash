@@ -40,22 +40,22 @@ func TestNewServerEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected := map[string]string{
-		"_schema:HTTPServer":            "",
-		"Request.Headers.Connection":    "close",
-		"Request.Headers.Accept":        "application/json",
-		"Request.Headers.Authorization": "REDACTED",
-		"Request.Proto":                 "HTTP/1.1",
-		"Request.RemoteAddr":            "127.0.0.1",
-		"Request.Host":                  "example.com",
-		"Request.ContentLength":         "0",
-		"Request.Method":                "GET",
-		"Request.URI":                   "/foo",
-		"Response.StatusCode":           "200",
-		"Response.ContentLength":        "0",
-		"User":       "",
-		"Route":      "",
-		"ServerSend": "0001-01-01T00:00:00Z",
-		"ServerRecv": "0001-01-01T00:00:00Z",
+		"_schema:HTTPServer":                   "",
+		"Server.Request.Headers.Connection":    "close",
+		"Server.Request.Headers.Accept":        "application/json",
+		"Server.Request.Headers.Authorization": "REDACTED",
+		"Server.Request.Proto":                 "HTTP/1.1",
+		"Server.Request.RemoteAddr":            "127.0.0.1",
+		"Server.Request.Host":                  "example.com",
+		"Server.Request.ContentLength":         "0",
+		"Server.Request.Method":                "GET",
+		"Server.Request.URI":                   "/foo",
+		"Server.Response.StatusCode":           "200",
+		"Server.Response.ContentLength":        "0",
+		"Server.User":                          "",
+		"Server.Route":                         "",
+		"Server.Send":                          "0001-01-01T00:00:00Z",
+		"Server.Recv":                          "0001-01-01T00:00:00Z",
 	}
 	if !reflect.DeepEqual(anns.StringMap(), expected) {
 		t.Errorf("got %#v, want %#v", anns.StringMap(), expected)
@@ -111,6 +111,7 @@ func TestMiddleware_useSpanFromHeaders(t *testing.T) {
 		User:  "u",
 		Route: "r",
 	}
+
 	delete(e.Request.Headers, "Span-Id")
 	e.ServerRecv = time.Time{}
 	e.ServerSend = time.Time{}
@@ -169,22 +170,22 @@ func TestMiddleware_createNewSpan(t *testing.T) {
 
 func TestServerEvent_unmarshal(t *testing.T) {
 	m := map[string]string{
-		"":                         "/foo",
-		"_schema:name":             "",
-		"User":                     "u",
-		"ServerRecv":               "0001-01-01T00:00:00Z",
-		"ServerSend":               "0001-01-01T00:00:00Z",
-		"Request.Host":             "example.com",
-		"Request.RemoteAddr":       "",
-		"Request.ContentLength":    "0",
-		"Request.Method":           "GET",
-		"Request.URI":              "/foo",
-		"Request.Proto":            "HTTP/1.1",
-		"Response.Headers.Span-Id": "15409ac1437f45e4/118217713a143137",
-		"Response.ContentLength":   "0",
-		"Response.StatusCode":      "200",
-		"Route":                    "r",
-		"_schema:HTTPServer":       "",
+		"":                                "/foo",
+		"_schema:name":                    "",
+		"Server.User":                     "u",
+		"Server.Recv":                     "0001-01-01T00:00:00Z",
+		"Server.Send":                     "0001-01-01T00:00:00Z",
+		"Server.Request.Host":             "example.com",
+		"Server.Request.RemoteAddr":       "",
+		"Server.Request.ContentLength":    "0",
+		"Server.Request.Method":           "GET",
+		"Server.Request.URI":              "/foo",
+		"Server.Request.Proto":            "HTTP/1.1",
+		"Server.Response.Headers.Span-Id": "15409ac1437f45e4/118217713a143137",
+		"Server.Response.ContentLength":   "0",
+		"Server.Response.StatusCode":      "200",
+		"Server.Route":                    "r",
+		"_schema:HTTPServer":              "",
 	}
 	var e ServerEvent
 	if err := appdash.UnmarshalEvent(mapToAnnotations(m), &e); err != nil {
