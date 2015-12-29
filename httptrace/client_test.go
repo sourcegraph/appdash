@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +120,29 @@ func TestTransport(t *testing.T) {
 	e.ClientRecv = time.Time{}
 	if !reflect.DeepEqual(e, wantEvent) {
 		t.Errorf("got ClientEvent %+v, want %+v", e, wantEvent)
+	}
+}
+
+func TestCancelRequest(t *testing.T) {
+	ms := appdash.NewMemoryStore()
+	rec := appdash.NewRecorder(appdash.SpanID{1, 2, 3}, appdash.NewLocalCollector(ms))
+	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
+	transport := &Transport{
+		Recorder: rec,
+	}
+	client := &http.Client{
+		Timeout:   1 * time.Millisecond,
+		Transport: transport,
+	}
+
+	resp, err := client.Do(req)
+
+	expected := "Get http://example.com/foo: net/http: request canceled while waiting for connection"
+	if err == nil || !strings.HasPrefix(err.Error(), expected) {
+		t.Errorf("got %#v, want %s", err, expected)
+	}
+	if resp != nil {
+		t.Errorf("got http.Response %#v, want nil", resp)
 	}
 }
 
