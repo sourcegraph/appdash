@@ -1,6 +1,5 @@
-# Most explicit routing to GCE Precise
-sudo: required
-dist: precise
+# Container-based Precise due to `sudo: false`
+sudo: false
 language: go
 go:
  - 1.4
