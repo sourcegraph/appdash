@@ -86,6 +86,14 @@
 </div>
 
 
+<div class="viewMode">
+  <button id="btnSortStartTime" class="btn btn-default">Sort By start time</button>
+  <button id="btnSortEndTime" class="btn btn-default">Sort By end time</button>
+  <button id="btnSortLatency" class="btn btn-default">Sort By latency</button>
+  <button id="btnSortAlphabet" class="btn btn-default">Sort By alphabet</button>
+</div>
+
+
 <style type="text/css">
   .axis path,
   .axis line {
@@ -420,6 +428,94 @@
     if(data != null) {
       timelineHover();
     }
+
+    // save state for last sort
+    var lastSort = {
+      name: '',
+      order: false,
+      toggleOrder: function(name){
+        if (this.name !== name) {
+          this.name = name;
+          this.order = false;
+          return 1;
+        }
+
+        this.order = !this.order;
+        if (this.order) {
+          return -1;
+        }
+        return 1;
+      }
+    };
+
+    // sort by starting_time
+    function toggleSortStartTime() {
+      var sortOrder = lastSort.toggleOrder('start_time');
+      data.sort(function(a, b) {
+        // validation
+        if (typeof a.times !== 'object' || typeof b.times !== 'object') return -1;
+        if (a.times.length === 0 || b.times.length === 0) return -1;
+
+        // sort
+        if (a.times[0].starting_time < b.times[0].starting_time) return sortOrder * -1;
+        if (a.times[0].starting_time > b.times[0].starting_time) return sortOrder;
+        return 0
+      })
+      timelineHover();
+    }
+
+    // sort by ending_time
+    function toggleSortEndTime() {
+      var sortOrder = lastSort.toggleOrder('end_time');
+      data.sort(function(a, b) {
+        // validation
+        if (typeof a.times !== 'object' || typeof b.times !== 'object') return -1;
+        if (a.times.length === 0 || b.times.length === 0) return -1;
+
+        // sort
+        if (a.times[0].ending_time < b.times[0].ending_time) return sortOrder * -1;
+        if (a.times[0].ending_time > b.times[0].ending_time) return sortOrder;
+        return 0
+      })
+      timelineHover();
+    }
+
+    // sort by latency
+    function toggleSortLatency() {
+      var sortOrder = lastSort.toggleOrder('latency');
+      data.sort(function(a, b) {
+        // validation
+        if (typeof a.times !== 'object' || typeof b.times !== 'object') return -1;
+        if (a.times.length === 0 || b.times.length === 0) return -1;
+
+        // sort
+        if (a.times[0].latency < b.times[0].latency) return sortOrder * -1;
+        if (a.times[0].latency > b.times[0].latency) return sortOrder;
+        return 0
+      })
+      timelineHover();
+    }
+
+    // sort by label alphabetically
+    var toggleSortAlphabet = function(){
+      var sortOrder = lastSort.toggleOrder('alphabet');
+      data.sort(function(a, b) {
+        // validation
+        if (typeof a.label !== 'string' || typeof b.label !== 'string') return -1;
+
+        // sort
+        if (a.label.toLowerCase() < b.label.toLowerCase()) return sortOrder * -1;
+        if (a.label.toLowerCase() > b.label.toLowerCase()) return sortOrder;
+        return 0
+      })
+      timelineHover();
+    }
+
+    // set sort evet to buttons
+    $("#btnSortStartTime").click(toggleSortStartTime);
+    $("#btnSortEndTime").click(toggleSortEndTime);
+    $("#btnSortLatency").click(toggleSortLatency);
+    $("#btnSortAlphabet").click(toggleSortAlphabet);
   })();
 </script>
 
