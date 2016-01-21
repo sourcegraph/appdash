@@ -388,7 +388,14 @@
 
       var svg = d3.select(".trace-timeline").append("svg").attr("width", width)
                   .datum(visibleData).call(chart)
+                  .style("overflow", "visible")
                   .call(tip);
+
+      var filter = function(text){
+        if (text.length < 14) { return text; }
+        return text.substr(0, 13) + "...";
+      };
+      var $labels = $(".trace-timeline text.timeline-label");
 
       // Make text on each timeline element click-able. d3-timeline.js doesn't
       // seem to have a way to support this easily.
@@ -399,6 +406,7 @@
       // The last number of that is the index into our visibleData.
       $(".trace-timeline g>text").each(function() {
         var index = numFromEnd($(this).prev().attr('id'));
+        var label = $labels[index];
 
         d3.select(this)
           .on("mouseover", function() {
@@ -409,10 +417,15 @@
             window.location.href = visibleData[index].url;
           });
 
+        d3.select(label)
+          .on("mouseover", function() { timespanHover(true, chart, index); })
+          .on("mouseout", function() { timespanHover(false, chart, index); })
+          .text(filter(label.innerHTML))
+
         // When there is a contextmenu (e.g. right click) event we open the
         // context menu on the timespan rectangle.
         var datum = d3.select($(this).prev()[0]).data()[0];
-        $(this).on("contextmenu", function(e) { return ctxMenuOpen(e, datum, visibleData[index]) });
+        $([this, label]).on("contextmenu", function(e) { return ctxMenuOpen(e, datum, visibleData[index]) });
         $(this).prev().on("contextmenu", function(e) { return ctxMenuOpen(e, datum, visibleData[index]) });
       });
     }

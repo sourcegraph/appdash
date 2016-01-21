@@ -57,13 +57,8 @@ func (a *App) d3timelineInner(t *appdash.Trace, depth int) ([]timelineItem, erro
 		}
 	}
 
-	name := t.Span.Name()
-	if len(name) > 13 {
-		name = name[:13]
-		name += "…"
-	}
 	item := timelineItem{
-		Label:     name,
+		Label:     t.Span.Name(),
 		FullLabel: t.Span.Name(),
 		Data:      t.Annotations.StringMap(),
 		SpanID:    t.Span.ID.Span.String(),
