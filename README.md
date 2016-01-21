@@ -87,6 +87,10 @@ There are 4 main components/concepts in appdash:
   receives.
 
 
+## Language Support
+
+Appdash has clients available for Go, Python (see `python/` subdir) and Ruby (see https://github.com/bsm/appdash-rb).
+
 
 ## Acknowledgments
 
