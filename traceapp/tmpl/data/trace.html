@@ -89,8 +89,8 @@
 <div class="viewMode">
   <button id="btnSortStartTime" class="btn btn-default">Sort By start time</button>
   <button id="btnSortEndTime" class="btn btn-default">Sort By end time</button>
-  <button id="btnSortLatency" class="btn btn-default">Sort By latency</button>
-  <button id="btnSortAlphabet" class="btn btn-default">Sort By alphabet</button>
+  <button id="btnSortDuration" class="btn btn-default">Sort By duration</button>
+  <button id="btnSortLabel" class="btn btn-default">Sort By label</button>
 </div>
 
 
@@ -432,19 +432,20 @@
     // save state for last sort
     var lastSort = {
       name: '',
-      order: false,
+      descendingOrder: false,
       toggleOrder: function(name){
         if (this.name !== name) {
           this.name = name;
-          this.order = false;
+          this.descendingOrder = false;
           return 1;
         }
 
-        this.order = !this.order;
-        if (this.order) {
+        this.descendingOrder = !this.descendingOrder;
+        if (this.descendingOrder) {
           return -1;
+        } else {
+          return 1;
         }
-        return 1;
       }
     };
 
@@ -457,9 +458,13 @@
         if (a.times.length === 0 || b.times.length === 0) return -1;
 
         // sort
-        if (a.times[0].starting_time < b.times[0].starting_time) return sortOrder * -1;
-        if (a.times[0].starting_time > b.times[0].starting_time) return sortOrder;
-        return 0
+        if (a.times[0].starting_time < b.times[0].starting_time) {
+          return sortOrder * -1;
+        } else if (a.times[0].starting_time > b.times[0].starting_time) {
+          return sortOrder;
+        } else {
+          return 0;
+        }
       })
       timelineHover();
     }
@@ -473,40 +478,52 @@
         if (a.times.length === 0 || b.times.length === 0) return -1;
 
         // sort
-        if (a.times[0].ending_time < b.times[0].ending_time) return sortOrder * -1;
-        if (a.times[0].ending_time > b.times[0].ending_time) return sortOrder;
-        return 0
+        if (a.times[0].ending_time < b.times[0].ending_time) {
+          return sortOrder * -1;
+        } else if (a.times[0].ending_time > b.times[0].ending_time) {
+          return sortOrder;
+        } else {
+          return 0;
+        }
       })
       timelineHover();
     }
 
-    // sort by latency
-    function toggleSortLatency() {
-      var sortOrder = lastSort.toggleOrder('latency');
+    // sort by duration
+    function toggleSortDuration() {
+      var sortOrder = lastSort.toggleOrder('duration');
       data.sort(function(a, b) {
         // validation
         if (typeof a.times !== 'object' || typeof b.times !== 'object') return -1;
         if (a.times.length === 0 || b.times.length === 0) return -1;
 
         // sort
-        if (a.times[0].latency < b.times[0].latency) return sortOrder * -1;
-        if (a.times[0].latency > b.times[0].latency) return sortOrder;
-        return 0
+        if (a.times[0].duration < b.times[0].duration) {
+          return sortOrder * -1;
+        } else if (a.times[0].duration > b.times[0].duration) {
+          return sortOrder;
+        } else {
+          return 0;
+        }
       })
       timelineHover();
     }
 
     // sort by label alphabetically
-    var toggleSortAlphabet = function(){
-      var sortOrder = lastSort.toggleOrder('alphabet');
+    var toggleSortLabel = function(){
+      var sortOrder = lastSort.toggleOrder('label');
       data.sort(function(a, b) {
         // validation
         if (typeof a.label !== 'string' || typeof b.label !== 'string') return -1;
 
         // sort
-        if (a.label.toLowerCase() < b.label.toLowerCase()) return sortOrder * -1;
-        if (a.label.toLowerCase() > b.label.toLowerCase()) return sortOrder;
-        return 0
+        if (a.label.toLowerCase() < b.label.toLowerCase()) {
+          return sortOrder * -1;
+        } else if (a.label.toLowerCase() > b.label.toLowerCase()) {
+          return sortOrder;
+        } else {
+          return 0;
+        }
       })
       timelineHover();
     }
@@ -514,8 +531,8 @@
     // set sort evet to buttons
     $("#btnSortStartTime").click(toggleSortStartTime);
     $("#btnSortEndTime").click(toggleSortEndTime);
-    $("#btnSortLatency").click(toggleSortLatency);
-    $("#btnSortAlphabet").click(toggleSortAlphabet);
+    $("#btnSortDuration").click(toggleSortDuration);
+    $("#btnSortLabel").click(toggleSortLabel);
   })();
 </script>
 
