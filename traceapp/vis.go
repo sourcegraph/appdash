@@ -25,9 +25,10 @@ type timelineItem struct {
 }
 
 type timelineItemTimespan struct {
-	Label string `json:"label"`
-	Start int64  `json:"starting_time"` // msec since epoch
-	End   int64  `json:"ending_time"`   // msec since epoch
+	Label    string `json:"label"`
+	Start    int64  `json:"starting_time"` // msec since epoch
+	End      int64  `json:"ending_time"`   // msec since epoch
+	Duration int64  `json:"duration"`
 }
 
 func (a *App) d3timeline(t *appdash.Trace) ([]timelineItem, error) {
@@ -99,6 +100,7 @@ func (a *App) d3timelineInner(t *appdash.Trace, depth int) ([]timelineItem, erro
 		msec := time.Duration(item.Times[0].End-item.Times[0].Start) * time.Millisecond
 		if msec > 0 {
 			ts.Label = fmt.Sprintf("%s (%s)", item.Label, msec)
+			ts.Duration = int64(msec)
 		}
 	}
 	if len(item.Times) == 0 {
