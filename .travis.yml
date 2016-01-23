@@ -18,6 +18,6 @@ before_install:
 install:
   - go get -v github.com/influxdata/influxdb
   # see: github.com/influxdata/influxdb/issues/5388
-  - mv $HOME/gopath/src/github.com/influxdata/influxdb $HOME/gopath/src/github.com/influxdb/influxdb
+  - mv $GOPATH/src/github.com/influxdata $GOPATH/src/github.com/influxdb
   - go get -t -v ./...
   - go test -v ./...
