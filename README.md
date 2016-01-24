@@ -49,8 +49,7 @@ architectural choices were made.
 
 There are 4 main components/concepts in appdash:
 
-*
-  [**Spans**](https://sourcegraph.com/sourcegraph.com/sourcegraph/appdash@master/.GoPackage/sourcegraph.com/sourcegraph/appdash/.def/SpanID):
+* [**Spans**](https://sourcegraph.com/sourcegraph.com/sourcegraph/appdash@master/.GoPackage/sourcegraph.com/sourcegraph/appdash/.def/SpanID):
   A span refers to an operation and all of its children. For example,
   an HTTP handler handles a request by calling other components in
   your system, which in turn make various API and DB calls. The HTTP
