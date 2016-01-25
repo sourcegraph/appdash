@@ -14,7 +14,6 @@ import (
 	"sort"
 
 	"sourcegraph.com/sourcegraph/appdash/internal/wire"
-	"sourcegraph.com/sourcegraph/appdash/testutil"
 )
 
 func TestCollectorServer(t *testing.T) {
@@ -214,8 +213,8 @@ func TestChunkedCollector(t *testing.T) {
 		newCollectPacket(SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}, {"k2", []byte("v2")}, {"k4", []byte("v4")}}),
 		newCollectPacket(SpanID{2, 3, 4}, Annotations{{"k3", []byte("v3")}}),
 	}
-	sort.Sort(testutil.CollectPackets(packets))
-	sort.Sort(testutil.CollectPackets(want))
+	sort.Sort(byTraceID(packets))
+	sort.Sort(byTraceID(want))
 	if !reflect.DeepEqual(packets, want) {
 		t.Errorf("after MinInterval: got packets == %v, want %v", packets, want)
 	}
@@ -320,3 +319,9 @@ func BenchmarkChunkedCollector500(b *testing.B) {
 		}
 	}
 }
+
+type byTraceID []*wire.CollectPacket
+
+func (bt byTraceID) Len() int           { return len(bt) }
+func (bt byTraceID) Swap(i, j int)      { bt[i], bt[j] = bt[j], bt[i] }
+func (bt byTraceID) Less(i, j int) bool { return *bt[i].Spanid.Trace < *bt[j].Spanid.Trace }
