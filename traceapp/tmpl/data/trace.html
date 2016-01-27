@@ -144,6 +144,7 @@
 <script type="text/javascript">
   (function() {
     var data = {{.VisData}};
+    var showTimelineChart = {{.ShowTimelineChart}};
     var width = $(".container").width();
 
     // em converts the input (in em units) to pixels units and returns it.
@@ -438,7 +439,7 @@
       });
     }
 
-    if(data != null) {
+    if(data != null && showTimelineChart) {
       timelineHover();
     }
 
