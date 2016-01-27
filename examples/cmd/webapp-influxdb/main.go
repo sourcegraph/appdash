@@ -1,18 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"sourcegraph.com/sourcegraph/appdash"
-	"sourcegraph.com/sourcegraph/appdash/examples/cmd/webapp"
 	"sourcegraph.com/sourcegraph/appdash/httptrace"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
-	influxdb "github.com/influxdb/influxdb/cmd/influxd/run"
+
+	influxDBServer "github.com/influxdb/influxdb/cmd/influxd/run"
 )
 
 const CtxSpanID = 0
@@ -20,14 +22,15 @@ const CtxSpanID = 0
 var collector appdash.Collector
 
 func main() {
-	conf, err := influxdb.NewDemoConfig()
+	conf, err := influxDBServer.NewDemoConfig()
 	if err != nil {
 		log.Fatalf("failed to create influxdb config, error: %v", err)
 	}
-	store, err := appdash.NewInfluxDBStore(conf, &influxdb.BuildInfo{})
+	store, err := appdash.NewInfluxDBStore(conf, &influxDBServer.BuildInfo{})
 	if err != nil {
 		log.Fatalf("failed to create influxdb store, error: %v", err)
 	}
+	defer store.Close()
 	tapp := traceapp.New(nil)
 	tapp.Store = store
 	tapp.Queryer = store
@@ -43,10 +46,35 @@ func main() {
 		},
 	})
 	router := mux.NewRouter()
-	router.HandleFunc("/", webapp.Home)
-	router.HandleFunc("/endpoint", webapp.Endpoint)
+	router.HandleFunc("/", Home)
+	router.HandleFunc("/endpoint", Endpoint)
 	n := negroni.Classic()
-	n.Use(negroni.HandlerFunc(tracemw)) // Register appdash's HTTP middleware.
+	n.Use(negroni.HandlerFunc(tracemw))
 	n.UseHandler(router)
 	n.Run(":8699")
+}
+
+func Home(w http.ResponseWriter, r *http.Request) {
+	span := context.Get(r, CtxSpanID).(appdash.SpanID)
+	httpClient := &http.Client{
+		Transport: &httptrace.Transport{
+			Recorder: appdash.NewRecorder(span, collector),
+			SetName:  true,
+		},
+	}
+	for i := 0; i < 3; i++ {
+		resp, err := httpClient.Get("http://localhost:8699/endpoint")
+		if err != nil {
+			log.Println("/endpoint:", err)
+			continue
+		}
+		resp.Body.Close()
+	}
+	fmt.Fprintf(w, `<p>Three API requests have been made!</p>`)
+	fmt.Fprintf(w, `<p><a href="http://localhost:8700/traces/%s" target="_">View the trace (ID:%s)</a></p>`, span.Trace, span.Trace)
+}
+
+func Endpoint(w http.ResponseWriter, r *http.Request) {
+	time.Sleep(200 * time.Millisecond)
+	fmt.Fprintf(w, "Slept for 200ms!")
 }
