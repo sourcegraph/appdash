@@ -1,6 +1,7 @@
 package traceapp
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -13,6 +14,8 @@ import (
 	_ "sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
 
+var ErrTimelineItemValidation = errors.New("timeline item validation error")
+
 type timelineItem struct {
 	Label        string                  `json:"label"`
 	FullLabel    string                  `json:"fullLabel"`
@@ -22,6 +25,15 @@ type timelineItem struct {
 	ParentSpanID string                  `json:"parentSpanID"`
 	URL          string                  `json:"url"`
 	Visible      bool                    `json:"visible"`
+}
+
+func (tl *timelineItem) Valid() bool {
+	// d3 timeline chart depends on
+	// item.Label & item.FullLabel
+	if tl.Label == "" || tl.FullLabel == "" {
+		return false
+	}
+	return true
 }
 
 type timelineItemTimespan struct {
@@ -65,6 +77,11 @@ func (a *App) d3timelineInner(t *appdash.Trace, depth int) ([]timelineItem, erro
 		SpanID:    t.Span.ID.Span.String(),
 		URL:       u.String(),
 	}
+
+	if !item.Valid() {
+		return nil, ErrTimelineItemValidation
+	}
+
 	if t.Span.ID.Parent != 0 {
 		item.ParentSpanID = t.Span.ID.Parent.String()
 	}
