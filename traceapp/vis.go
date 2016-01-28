@@ -14,6 +14,8 @@ import (
 	_ "sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
 
+// ErrTimelineItemValidation is returned by timelineItem.Valid when either
+// timelineItem.Label or timelime.ItemFullLabel are empty.
 var ErrTimelineItemValidation = errors.New("timeline item validation error")
 
 type timelineItem struct {
