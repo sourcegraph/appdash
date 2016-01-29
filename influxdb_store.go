@@ -24,6 +24,9 @@ var _ interface {
 	Queryer
 } = (*InfluxDBStore)(nil)
 
+// TODO: should be a constant.
+var zeroID = fmt.Sprintf("%016x", uint64(0))
+
 type InfluxDBStore struct {
 	con           *influxDBClient.Client // InfluxDB client connection.
 	server        *influxDBServer.Server // InfluxDB API server.
@@ -117,20 +120,19 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	traces := make([]*Trace, 0)
 	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
 	// grouping by all tags includes those and it's values on the query response.
-	q := fmt.Sprintf("SELECT * FROM spans GROUP BY * LIMIT %d", in.tracesPerPage)
-	result, err := in.executeOneQuery(q)
+	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s' GROUP BY * LIMIT %d", zeroID, in.tracesPerPage)
+	rootSpansResult, err := in.executeOneQuery(rootSpansQuery)
 	if err != nil {
 		return nil, err
 	}
 	// result.Series -> A slice containing all the spans.
-	if len(result.Series) == 0 {
+	if len(rootSpansResult.Series) == 0 {
 		return traces, nil
 	}
 	// Cache to keep track of traces to be returned.
 	tracesCache := make(map[ID]*Trace, 0)
 	// Iterate over series(spans) to create traces.
-	for _, s := range result.Series {
-		var isRootSpan bool
+	for _, s := range rootSpansResult.Series {
 		span, err := newSpanFromRow(&s)
 		if err != nil {
 			return nil, err
@@ -139,28 +141,52 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		if span.ID.Parent == 0 {
-			isRootSpan = true
-		}
 		span.Annotations = *annotations
-		if isRootSpan { // root span.
-			trace, present := tracesCache[span.ID.Trace]
-			if !present {
-				tracesCache[span.ID.Trace] = &Trace{Span: *span}
-			} else { // trace already added just update the span.
-				trace.Span = *span
-			}
-		} else { // children span.
-			trace, present := tracesCache[span.ID.Trace]
-			if !present { // root trace not added yet.
-				tracesCache[span.ID.Trace] = &Trace{Sub: []*Trace{&Trace{Span: *span}}}
-			} else { // root trace already added so append a sub trace.
-				trace.Sub = append(trace.Sub, &Trace{Span: *span})
-			}
+		_, present := tracesCache[span.ID.Trace]
+		if !present {
+			tracesCache[span.ID.Trace] = &Trace{Span: *span}
+		} else {
+			return nil, errors.New("duplicated root span")
 		}
 	}
-	for _, t := range tracesCache {
-		traces = append(traces, t)
+	// Using 'OR' since 'IN' not supported yet.
+	where := `WHERE `
+	var i int = 1
+	for _, trace := range tracesCache {
+		where += fmt.Sprintf("(trace_id='%s' AND parent_id!='%s')", trace.Span.ID.Trace, zeroID)
+		// Adds 'OR' except for last iteration.
+		if i != len(tracesCache) && len(tracesCache) > 1 {
+			where += " OR "
+		}
+		i += 1
+	}
+	// Queries for all children spans of the traces to be returned.
+	childrenSpansQuery := fmt.Sprintf("SELECT * FROM spans %s GROUP BY *", where)
+	childreSpansResult, err := in.executeOneQuery(childrenSpansQuery)
+	if err != nil {
+		return nil, err
+	}
+	// Iterate over series(children spans) to create sub-traces
+	// and associates sub-traces with it's parent trace.
+	for _, s := range childreSpansResult.Series {
+		span, err := newSpanFromRow(&s)
+		if err != nil {
+			return nil, err
+		}
+		annotations, err := annotationsFromRow(&s)
+		if err != nil {
+			return nil, err
+		}
+		span.Annotations = *annotations
+		trace, present := tracesCache[span.ID.Trace]
+		if !present { // Root trace not added.
+			return nil, errors.New("parent not found")
+		} else { // Root trace already added so append a sub-trace.
+			trace.Sub = append(trace.Sub, &Trace{Span: *span})
+		}
+	}
+	for _, trace := range tracesCache {
+		traces = append(traces, trace)
 	}
 	return traces, nil
 }
