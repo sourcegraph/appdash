@@ -3,19 +3,19 @@ package appdash
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"net/url"
 	"reflect"
 	"time"
 
 	influxDBClient "github.com/influxdb/influxdb/client"
 	influxDBServer "github.com/influxdb/influxdb/cmd/influxd/run"
+	influxDBModels "github.com/influxdb/influxdb/models"
 )
 
 const (
-	dbName              string = "appdash" // InfluxDB db name.
-	spanMeasurementName string = "spans"   // InfluxDB container name for trace spans.
+	dbName               string = "appdash" // InfluxDB db name.
+	spanMeasurementName  string = "spans"   // InfluxDB container name for trace spans.
+	defaultTracesPerPage int    = 10        // Default number of traces per page.
 )
 
 // Compile-time "implements" check.
@@ -25,8 +25,9 @@ var _ interface {
 } = (*InfluxDBStore)(nil)
 
 type InfluxDBStore struct {
-	con    *influxDBClient.Client // InfluxDB client connection.
-	server *influxDBServer.Server
+	con           *influxDBClient.Client // InfluxDB client connection.
+	server        *influxDBServer.Server // InfluxDB API server.
+	tracesPerPage int                    // Number of traces per page.
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
@@ -53,8 +54,8 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	pts := []influxDBClient.Point{
 		influxDBClient.Point{
 			Measurement: spanMeasurementName,
-			Tags:        tags,   //indexed metadata
-			Fields:      fields, //non-indexed metadata
+			Tags:        tags,   // indexed metadata.
+			Fields:      fields, // non-indexed metadata.
 			Time:        time.Now(),
 			Precision:   "s",
 		},
@@ -72,102 +73,96 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 }
 
 func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
-	t := &Trace{}
+	trace := &Trace{}
 	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
 	// grouping by all tags includes those and it's values on the query response.
-	q := influxDBClient.Query{
-		Command:  fmt.Sprintf("SELECT * FROM spans WHERE trace_id='%s' GROUP BY *", id),
-		Database: dbName,
-	}
-	response, err := in.con.Query(q)
+	q := fmt.Sprintf("SELECT * FROM spans WHERE trace_id='%s' GROUP BY *", id)
+	result, err := in.executeOneQuery(q)
 	if err != nil {
 		return nil, err
 	}
-	if response.Error() != nil {
-		return nil, response.Error()
-	}
-	// Expecting one result, since a single query is executed:
-	// "SELECT * FROM spans ...".
-	if len(response.Results) != 1 {
-		return nil, errors.New("unexpected number of influxdb query response result")
-	}
-	// Slice series contains all the spans.
-	if len(response.Results[0].Series) == 0 {
+	// result.Series -> A slice containing all the spans.
+	if len(result.Series) == 0 {
 		return nil, errors.New("trace not found")
 	}
 	var isRootSpan bool
-	// Iterate over series(spans) to create & set trace fields.
-	for _, s := range response.Results[0].Series {
-		traceID, err := ParseID(s.Tags["trace_id"])
+	// Iterate over series(spans) to create trace children's & set trace fields.
+	for _, s := range result.Series {
+		span, err := newSpan(s.Tags)
 		if err != nil {
 			return nil, err
 		}
-		spanID, err := ParseID(s.Tags["span_id"])
-		if err != nil {
-			return nil, err
-		}
-		parentID, err := ParseID(s.Tags["parent_id"])
-		if err != nil {
-			return nil, err
-		}
-		if parentID == 0 && isRootSpan {
+		if span.ID.Parent == 0 && isRootSpan {
 			// Must be a single root span.
 			return nil, errors.New("unexpected multiple root spans")
 		}
-		if parentID == 0 && !isRootSpan {
+		if span.ID.Parent == 0 && !isRootSpan {
 			isRootSpan = true
 		}
-		span := Span{
-			ID: SpanID{
-				Trace:  ID(traceID),
-				Span:   ID(spanID),
-				Parent: ID(parentID),
-			},
+		annotations, err := annotations(&s)
+		if err != nil {
+			return trace, nil
 		}
-		// s.Values[n] is a slice of span's annotation values
-		// len(s.Values) might be greater than one - meaning there are
-		// some to drop, see: InfluxDBStore.Collect(...).
-		// if so last one is use.
-		var fields []interface{}
-		if len(s.Values) == 1 {
-			fields = s.Values[0]
-		}
-		if len(s.Values) > 1 {
-			fields = s.Values[len(s.Values)-1]
-		}
-		annotations := make(Annotations, len(fields))
-		// Iterates over span's annotation values.
-		for i, field := range fields {
-			// It is safe to do column[0] (eg. 'Server.Request.Method')
-			// matches fields[0] (eg. 'GET')
-			key := s.Columns[i]
-			var value []byte
-			switch field.(type) {
-			case string:
-				value = []byte(field.(string))
-			case nil:
-			default:
-				return nil, fmt.Errorf("unexpected field type: %v", reflect.TypeOf(field))
-			}
-			a := Annotation{
-				Key:   key,
-				Value: value,
-			}
-			annotations = append(annotations, a)
-		}
-		span.Annotations = annotations
-		if isRootSpan {
-			t.Span = span
-		} else { // children
-			t.Sub = append(t.Sub, &Trace{Span: span})
+		span.Annotations = *annotations
+		if isRootSpan { // root span.
+			trace.Span = *span
+		} else { // children span.
+			trace.Sub = append(trace.Sub, &Trace{Span: *span})
 		}
 	}
-	return t, nil
+	return trace, nil
 }
 
 func (in *InfluxDBStore) Traces() ([]*Trace, error) {
-	//TODO: implementation
-	return nil, nil
+	traces := make([]*Trace, 0)
+	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
+	// grouping by all tags includes those and it's values on the query response.
+	q := fmt.Sprintf("SELECT * FROM spans GROUP BY * LIMIT %d", in.tracesPerPage)
+	result, err := in.executeOneQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	// result.Series -> A slice containing all the spans.
+	if len(result.Series) == 0 {
+		return traces, nil
+	}
+	// Cache to keep track of traces to be returned.
+	tracesCache := make(map[ID]*Trace, 0)
+	// Iterate over series(spans) to create traces.
+	for _, s := range result.Series {
+		var isRootSpan bool
+		span, err := newSpan(s.Tags)
+		if err != nil {
+			return nil, err
+		}
+		annotations, err := annotations(&s)
+		if err != nil {
+			return nil, err
+		}
+		if span.ID.Parent == 0 {
+			isRootSpan = true
+		}
+		span.Annotations = *annotations
+		if isRootSpan { // root span.
+			trace, present := tracesCache[span.ID.Trace]
+			if !present {
+				tracesCache[span.ID.Trace] = &Trace{Span: *span}
+			} else { // trace already added just update the span.
+				trace.Span = *span
+			}
+		} else { // children span.
+			trace, present := tracesCache[span.ID.Trace]
+			if !present { // root trace not added yet.
+				tracesCache[span.ID.Trace] = &Trace{Sub: []*Trace{&Trace{Span: *span}}}
+			} else { // root trace already added so append a sub trace.
+				trace.Sub = append(trace.Sub, &Trace{Span: *span})
+			}
+		}
+	}
+	for _, t := range tracesCache {
+		traces = append(traces, t)
+	}
+	return traces, nil
 }
 
 func (in *InfluxDBStore) Close() {
@@ -175,29 +170,35 @@ func (in *InfluxDBStore) Close() {
 }
 
 func (in *InfluxDBStore) createDBIfNotExists() error {
-	v := url.Values{}
-	v.Set("q", fmt.Sprintf("%s %s", "CREATE DATABASE IF NOT EXISTS ", dbName))
-	url, err := url.Parse(fmt.Sprintf("%s/%s?%s", in.con.Addr(), "query", v.Encode()))
+	// If no errors query execution was successfully - either DB was created or already exists.
+	response, err := in.con.Query(influxDBClient.Query{
+		Command: fmt.Sprintf("%s %s", "CREATE DATABASE IF NOT EXISTS", dbName),
+	})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	if c := resp.StatusCode; c < 200 || c > 299 {
-		defer resp.Body.Close()
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("failed to create appdash database, response body: %s", string(b))
+	if response.Error() != nil {
+		return response.Error()
 	}
 	return nil
+}
+
+func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result, error) {
+	response, err := in.con.Query(influxDBClient.Query{
+		Command:  command,
+		Database: dbName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if response.Error() != nil {
+		return nil, response.Error()
+	}
+	// Expecting one result, since a single query is executed.
+	if len(response.Results) != 1 {
+		return nil, errors.New("unexpected number of results for an influxdb single query")
+	}
+	return &response.Results[0], nil
 }
 
 func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
@@ -214,6 +215,7 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	if err := in.createDBIfNotExists(); err != nil {
 		return err
 	}
+	in.tracesPerPage = defaultTracesPerPage
 	return nil
 }
 
@@ -221,18 +223,73 @@ func (in *InfluxDBStore) removeSpanIfExists(id SpanID) error {
 	cmd := fmt.Sprintf(`
 		DROP SERIES FROM spans WHERE trace_id = '%s' AND span_id = '%s' AND parent_id = '%s'
 	`, id.Trace.String(), id.Span.String(), id.Parent.String())
-	q := influxDBClient.Query{
-		Command:  cmd,
-		Database: dbName,
-	}
-	_, err := in.con.Query(q)
+	_, err := in.executeOneQuery(cmd)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+func annotations(s *influxDBModels.Row) (*Annotations, error) {
+	// Actually an influxDBModels.Row represents a single InfluxDB serie.
+	// s.Values[n] is a slice containing span's annotation values.
+	var fields []interface{}
+	if len(s.Values) == 1 {
+		fields = s.Values[0]
+	}
+	// len(s.Values) might be greater than one - meaning there are
+	// some spans to drop, see: InfluxDBStore.Collect(...).
+	// If so last one is picked.
+	if len(s.Values) > 1 {
+		fields = s.Values[len(s.Values)-1]
+	}
+	annotations := make(Annotations, len(fields))
+	// Iterates over fields which represent span's annotation values.
+	for i, field := range fields {
+		// It is safe to do column[0] (eg. 'Server.Request.Method')
+		// matches fields[0] (eg. 'GET')
+		key := s.Columns[i]
+		var value []byte
+		switch field.(type) {
+		case string:
+			value = []byte(field.(string))
+		case nil:
+		default:
+			return nil, fmt.Errorf("unexpected field type: %v", reflect.TypeOf(field))
+		}
+		a := Annotation{
+			Key:   key,
+			Value: value,
+		}
+		annotations = append(annotations, a)
+	}
+	return &annotations, nil
+}
+
+func newSpan(tags map[string]string) (*Span, error) {
+	s := &Span{}
+	traceID, err := ParseID(tags["trace_id"])
+	if err != nil {
+		return nil, err
+	}
+	spanID, err := ParseID(tags["span_id"])
+	if err != nil {
+		return nil, err
+	}
+	parentID, err := ParseID(tags["parent_id"])
+	if err != nil {
+		return nil, err
+	}
+	s.ID = SpanID{
+		Trace:  ID(traceID),
+		Span:   ID(spanID),
+		Parent: ID(parentID),
+	}
+	return s, nil
+}
+
 func NewInfluxDBStore(c *influxDBServer.Config, bi *influxDBServer.BuildInfo) (*InfluxDBStore, error) {
+	//TODO: add Authentication.
 	s, err := influxDBServer.NewServer(c, bi)
 	if err != nil {
 		return nil, err
