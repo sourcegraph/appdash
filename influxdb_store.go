@@ -88,7 +88,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	var isRootSpan bool
 	// Iterate over series(spans) to create trace children's & set trace fields.
 	for _, s := range result.Series {
-		span, err := newSpan(s.Tags)
+		span, err := newSpanFromRow(&s)
 		if err != nil {
 			return nil, err
 		}
@@ -99,7 +99,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 		if span.ID.Parent == 0 && !isRootSpan {
 			isRootSpan = true
 		}
-		annotations, err := annotationsFromSerie(&s)
+		annotations, err := annotationsFromRow(&s)
 		if err != nil {
 			return trace, nil
 		}
@@ -131,11 +131,11 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	// Iterate over series(spans) to create traces.
 	for _, s := range result.Series {
 		var isRootSpan bool
-		span, err := newSpan(s.Tags)
+		span, err := newSpanFromRow(&s)
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromSerie(&s)
+		annotations, err := annotationsFromRow(&s)
 		if err != nil {
 			return nil, err
 		}
@@ -230,25 +230,25 @@ func (in *InfluxDBStore) removeSpanIfExists(id SpanID) error {
 	return nil
 }
 
-func annotationsFromSerie(s *influxDBModels.Row) (*Annotations, error) {
+func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 	// Actually an influxDBModels.Row represents a single InfluxDB serie.
-	// s.Values[n] is a slice containing span's annotation values.
+	// r.Values[n] is a slice containing span's annotation values.
 	var fields []interface{}
-	if len(s.Values) == 1 {
-		fields = s.Values[0]
+	if len(r.Values) == 1 {
+		fields = r.Values[0]
 	}
-	// len(s.Values) might be greater than one - meaning there are
+	// len(r.Values) might be greater than one - meaning there are
 	// some spans to drop, see: InfluxDBStore.Collect(...).
 	// If so last one is picked.
-	if len(s.Values) > 1 {
-		fields = s.Values[len(s.Values)-1]
+	if len(r.Values) > 1 {
+		fields = r.Values[len(r.Values)-1]
 	}
 	annotations := make(Annotations, len(fields))
 	// Iterates over fields which represent span's annotation values.
 	for i, field := range fields {
 		// It is safe to do column[0] (eg. 'Server.Request.Method')
 		// matches fields[0] (eg. 'GET')
-		key := s.Columns[i]
+		key := r.Columns[i]
 		var value []byte
 		switch field.(type) {
 		case string:
@@ -266,26 +266,26 @@ func annotationsFromSerie(s *influxDBModels.Row) (*Annotations, error) {
 	return &annotations, nil
 }
 
-func newSpan(tags map[string]string) (*Span, error) {
-	s := &Span{}
-	traceID, err := ParseID(tags["trace_id"])
+func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
+	span := &Span{}
+	traceID, err := ParseID(r.Tags["trace_id"])
 	if err != nil {
 		return nil, err
 	}
-	spanID, err := ParseID(tags["span_id"])
+	spanID, err := ParseID(r.Tags["span_id"])
 	if err != nil {
 		return nil, err
 	}
-	parentID, err := ParseID(tags["parent_id"])
+	parentID, err := ParseID(r.Tags["parent_id"])
 	if err != nil {
 		return nil, err
 	}
-	s.ID = SpanID{
+	span.ID = SpanID{
 		Trace:  ID(traceID),
 		Span:   ID(spanID),
 		Parent: ID(parentID),
 	}
-	return s, nil
+	return span, nil
 }
 
 func NewInfluxDBStore(c *influxDBServer.Config, bi *influxDBServer.BuildInfo) (*InfluxDBStore, error) {
