@@ -3,6 +3,7 @@ package appdash
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 // A Recorder is associated with a span and records annotations on the
@@ -49,6 +50,11 @@ func (r *Recorder) Msg(msg string) {
 // human-readable message) on the span.
 func (r *Recorder) Log(msg string) {
 	r.Event(Log(msg))
+}
+
+// LogWithTimestamp records a Log event with an explicit timestamp
+func (r *Recorder) LogWithTimestamp(msg string, timestamp time.Time) {
+	r.Event(LogWithTimestamp(msg, timestamp))
 }
 
 // Event records any event that implements the Event, TimespanEvent, or
