@@ -99,7 +99,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 		if span.ID.Parent == 0 && !isRootSpan {
 			isRootSpan = true
 		}
-		annotations, err := annotations(&s)
+		annotations, err := annotationsFromSerie(&s)
 		if err != nil {
 			return trace, nil
 		}
@@ -135,7 +135,7 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotations(&s)
+		annotations, err := annotationsFromSerie(&s)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +230,7 @@ func (in *InfluxDBStore) removeSpanIfExists(id SpanID) error {
 	return nil
 }
 
-func annotations(s *influxDBModels.Row) (*Annotations, error) {
+func annotationsFromSerie(s *influxDBModels.Row) (*Annotations, error) {
 	// Actually an influxDBModels.Row represents a single InfluxDB serie.
 	// s.Values[n] is a slice containing span's annotation values.
 	var fields []interface{}
