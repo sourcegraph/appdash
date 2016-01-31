@@ -60,8 +60,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 			Measurement: spanMeasurementName,
 			Tags:        tags,   // indexed metadata.
 			Fields:      fields, // non-indexed metadata.
-			Time:        time.Now(),
-			Precision:   "s",
+			Time:        time.Now().UTC(),
 		},
 	}
 	bps := influxDBClient.BatchPoints{
