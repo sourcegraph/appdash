@@ -14,7 +14,9 @@ import (
 	_ "sourcegraph.com/sourcegraph/appdash/sqltrace"
 )
 
-var ErrTimelineItemValidation = errors.New("timeline item validation error")
+// errTimelineItemValidation is returned by timelineItem.Valid when either
+// timelineItem.Label or timelime.ItemFullLabel are empty.
+var errTimelineItemValidation = errors.New("timeline item validation error")
 
 type timelineItem struct {
 	Label        string                  `json:"label"`
@@ -79,7 +81,7 @@ func (a *App) d3timelineInner(t *appdash.Trace, depth int) ([]timelineItem, erro
 	}
 
 	if !item.Valid() {
-		return nil, ErrTimelineItemValidation
+		return nil, errTimelineItemValidation
 	}
 
 	if t.Span.ID.Parent != 0 {

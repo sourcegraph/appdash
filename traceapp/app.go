@@ -115,7 +115,7 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 	var showTimelineChart bool = true
 	visData, err := a.d3timeline(trace)
 	switch err {
-	case ErrTimelineItemValidation:
+	case errTimelineItemValidation:
 		showTimelineChart = false
 	case nil:
 		break
