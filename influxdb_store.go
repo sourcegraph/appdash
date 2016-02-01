@@ -162,13 +162,13 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	}
 	// Queries for all children spans of the traces to be returned.
 	childrenSpansQuery := fmt.Sprintf("SELECT * FROM spans %s GROUP BY *", where)
-	childreSpansResult, err := in.executeOneQuery(childrenSpansQuery)
+	childrenSpansResult, err := in.executeOneQuery(childrenSpansQuery)
 	if err != nil {
 		return nil, err
 	}
 	// Iterate over series(children spans) to create sub-traces
 	// and associates sub-traces with it's parent trace.
-	for _, s := range childreSpansResult.Series {
+	for _, s := range childrenSpansResult.Series {
 		span, err := newSpanFromRow(&s)
 		if err != nil {
 			return nil, err
