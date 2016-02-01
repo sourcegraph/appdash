@@ -26,7 +26,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create influxdb config, error: %v", err)
 	}
-	store, err := appdash.NewInfluxDBStore(conf, &influxDBServer.BuildInfo{})
+	store, err := appdash.NewInfluxDBStore(appdash.InfluxDBStoreConfig{
+		Server:    conf,
+		BuildInfo: &influxDBServer.BuildInfo{},
+	})
 	if err != nil {
 		log.Fatalf("failed to create influxdb store, error: %v", err)
 	}

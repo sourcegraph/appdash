@@ -314,9 +314,14 @@ func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
 	return span, nil
 }
 
-func NewInfluxDBStore(c *influxDBServer.Config, bi *influxDBServer.BuildInfo) (*InfluxDBStore, error) {
+type InfluxDBStoreConfig struct {
+	Server    *influxDBServer.Config
+	BuildInfo *influxDBServer.BuildInfo
+}
+
+func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 	//TODO: add Authentication.
-	s, err := influxDBServer.NewServer(c, bi)
+	s, err := influxDBServer.NewServer(config.Server, config.BuildInfo)
 	if err != nil {
 		return nil, err
 	}
