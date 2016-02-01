@@ -40,6 +40,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	if err := in.removeSpanIfExists(id); err != nil {
 		return err
 	}
+
 	// trace_id, span_id & parent_id are set as tags
 	// because InfluxDB tags are indexed & those values
 	// are uselater on queries.
@@ -48,12 +49,14 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		"span_id":   id.Span.String(),
 		"parent_id": id.Parent.String(),
 	}
+
 	// Saving annotations as InfluxDB measurement spans fields
 	// which are not indexed.
 	fields := make(map[string]interface{}, len(anns))
 	for _, ann := range anns {
 		fields[ann.Key] = string(ann.Value)
 	}
+
 	// InfluxDB point represents a single span.
 	pts := []influxDBClient.Point{
 		influxDBClient.Point{
@@ -77,6 +80,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 
 func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	trace := &Trace{}
+
 	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
 	// grouping by all tags includes those and it's values on the query response.
 	q := fmt.Sprintf("SELECT * FROM spans WHERE trace_id='%s' GROUP BY *", id)
@@ -84,11 +88,13 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// result.Series -> A slice containing all the spans.
 	if len(result.Series) == 0 {
 		return nil, errors.New("trace not found")
 	}
 	var isRootSpan bool
+
 	// Iterate over series(spans) to create trace children's & set trace fields.
 	for _, s := range result.Series {
 		span, err := newSpanFromRow(&s)
@@ -118,6 +124,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 
 func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	traces := make([]*Trace, 0)
+
 	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
 	// grouping by all tags includes those and it's values on the query response.
 	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s' GROUP BY * LIMIT %d", zeroID, in.tracesPerPage)
@@ -125,12 +132,15 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// result.Series -> A slice containing all the spans.
 	if len(rootSpansResult.Series) == 0 {
 		return traces, nil
 	}
+
 	// Cache to keep track of traces to be returned.
 	tracesCache := make(map[ID]*Trace, 0)
+
 	// Iterate over series(spans) to create traces.
 	for _, s := range rootSpansResult.Series {
 		span, err := newSpanFromRow(&s)
@@ -149,23 +159,27 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 			return nil, errors.New("duplicated root span")
 		}
 	}
+
 	// Using 'OR' since 'IN' not supported yet.
 	where := `WHERE `
 	var i int = 1
 	for _, trace := range tracesCache {
 		where += fmt.Sprintf("(trace_id='%s' AND parent_id!='%s')", trace.Span.ID.Trace, zeroID)
+
 		// Adds 'OR' except for last iteration.
 		if i != len(tracesCache) && len(tracesCache) > 1 {
 			where += " OR "
 		}
 		i += 1
 	}
+
 	// Queries for all children spans of the traces to be returned.
 	childrenSpansQuery := fmt.Sprintf("SELECT * FROM spans %s GROUP BY *", where)
 	childrenSpansResult, err := in.executeOneQuery(childrenSpansQuery)
 	if err != nil {
 		return nil, err
 	}
+
 	// Iterate over series(children spans) to create sub-traces
 	// and associates sub-traces with it's parent trace.
 	for _, s := range childrenSpansResult.Series {
@@ -220,6 +234,7 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 	if response.Error() != nil {
 		return nil, response.Error()
 	}
+
 	// Expecting one result, since a single query is executed.
 	if len(response.Results) != 1 {
 		return nil, errors.New("unexpected number of results for an influxdb single query")
@@ -263,6 +278,7 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 	if len(r.Values) == 1 {
 		fields = r.Values[0]
 	}
+
 	// len(r.Values) might be greater than one - meaning there are
 	// some spans to drop, see: InfluxDBStore.Collect(...).
 	// If so last one is picked.
@@ -270,6 +286,7 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 		fields = r.Values[len(r.Values)-1]
 	}
 	annotations := make(Annotations, len(fields))
+
 	// Iterates over fields which represent span's annotation values.
 	for i, field := range fields {
 		// It is safe to do column[0] (eg. 'Server.Request.Method')
