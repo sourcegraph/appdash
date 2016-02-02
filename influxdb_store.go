@@ -34,10 +34,8 @@ type InfluxDBStore struct {
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
-	// Current strategy is to remove existing span and save new one
-	// instead of updating the existing one.
-	// TODO: explore a more efficient alternative strategy.
-	if err := in.removeSpanIfExists(id); err != nil {
+	p, err := in.findSpanPoint(id)
+	if err != nil {
 		return err
 	}
 
@@ -57,23 +55,29 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		fields[ann.Key] = string(ann.Value)
 	}
 
-	// InfluxDB point represents a single span.
-	pts := []influxDBClient.Point{
-		influxDBClient.Point{
+	if p != nil { // span exists on DB.
+		p.Measurement = spanMeasurementName
+		p.Tags = tags
+		p.Fields = fields
+	} else { // new span to be saved on DB.
+		p = &influxDBClient.Point{
 			Measurement: spanMeasurementName,
 			Tags:        tags,   // indexed metadata.
 			Fields:      fields, // non-indexed metadata.
 			Time:        time.Now().UTC(),
-		},
+		}
 	}
+
+	// InfluxDB point represents a single span.
+	pts := []influxDBClient.Point{*p}
 	bps := influxDBClient.BatchPoints{
 		Points:          pts,
 		Database:        dbName,
 		RetentionPolicy: "default",
 	}
-	_, err := in.con.Write(bps)
-	if err != nil {
-		return err
+	_, writeErr := in.con.Write(bps)
+	if writeErr != nil {
+		return writeErr
 	}
 	return nil
 }
@@ -242,6 +246,44 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 	return &response.Results[0], nil
 }
 
+func (in *InfluxDBStore) findSpanPoint(ID SpanID) (*influxDBClient.Point, error) {
+	q := fmt.Sprintf(`
+		SELECT * FROM spans WHERE trace_id='%s' AND span_id='%s' AND parent_id='%s' GROUP BY *
+	`, ID.Trace, ID.Span, ID.Parent)
+	result, err := in.executeOneQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Series) == 0 {
+		return nil, nil
+	}
+	if len(result.Series) > 1 {
+		return nil, errors.New("unexpected multiple series")
+	}
+	r := result.Series[0]
+	if len(r.Values) == 0 {
+		return nil, errors.New("unexpected empty series")
+	}
+	p := influxDBClient.Point{}
+	fields := r.Values[0]
+	for i, field := range fields {
+		key := r.Columns[i]
+		if key == "time" {
+			switch field.(type) {
+			case string:
+				t, err := time.Parse(time.RFC3339Nano, field.(string))
+				if err != nil {
+					return nil, err
+				}
+				p.Time = t
+			default:
+				return nil, fmt.Errorf("unexpected time type: %v", reflect.TypeOf(field))
+			}
+		}
+	}
+	return &p, err
+}
+
 func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	in.server = server
 	url, err := url.Parse(fmt.Sprintf("http://%s:%d", influxDBClient.DefaultHost, influxDBClient.DefaultPort))
@@ -257,17 +299,6 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 		return err
 	}
 	in.tracesPerPage = defaultTracesPerPage
-	return nil
-}
-
-func (in *InfluxDBStore) removeSpanIfExists(id SpanID) error {
-	cmd := fmt.Sprintf(`
-		DROP SERIES FROM spans WHERE trace_id = '%s' AND span_id = '%s' AND parent_id = '%s'
-	`, id.Trace.String(), id.Span.String(), id.Parent.String())
-	_, err := in.executeOneQuery(cmd)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
