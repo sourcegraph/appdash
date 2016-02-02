@@ -97,28 +97,29 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	if len(result.Series) == 0 {
 		return nil, errors.New("trace not found")
 	}
-	var isRootSpan bool
 
 	// Iterate over series(spans) to create trace children's & set trace fields.
+	var rootSpanSet bool
 	for _, s := range result.Series {
+		var isRootSpan bool
 		span, err := newSpanFromRow(&s)
 		if err != nil {
 			return nil, err
-		}
-		if span.ID.Parent == 0 && isRootSpan {
-			// Must be a single root span.
-			return nil, errors.New("unexpected multiple root spans")
-		}
-		if span.ID.Parent == 0 && !isRootSpan {
-			isRootSpan = true
 		}
 		annotations, err := annotationsFromRow(&s)
 		if err != nil {
 			return trace, nil
 		}
 		span.Annotations = *annotations
+		if span.ID.IsRoot() && rootSpanSet {
+			return nil, errors.New("unexpected multiple root spans")
+		}
+		if span.ID.IsRoot() && !rootSpanSet {
+			isRootSpan = true
+		}
 		if isRootSpan { // root span.
 			trace.Span = *span
+			rootSpanSet = true
 		} else { // children span.
 			trace.Sub = append(trace.Sub, &Trace{Span: *span})
 		}
