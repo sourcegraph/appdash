@@ -317,7 +317,7 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 	if len(r.Values) > 1 {
 		fields = r.Values[len(r.Values)-1]
 	}
-	annotations := make(Annotations, len(fields))
+	annotations := make(Annotations, 0)
 
 	// Iterates over fields which represent span's annotation values.
 	for i, field := range fields {
@@ -338,6 +338,7 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 		}
 		annotations = append(annotations, a)
 	}
+
 	return &annotations, nil
 }
 
