@@ -92,6 +92,11 @@ func (a *App) d3timelineInner(t *appdash.Trace, depth int) ([]timelineItem, erro
 	}
 	for _, e := range events {
 		if e, ok := e.(appdash.TimespanEvent); ok {
+			// Continue to next iteration
+			// if e.Start() or e.End() are empty time values.
+			if e.Start() == (time.Time{}) || e.End() == (time.Time{}) {
+				continue
+			}
 			start := e.Start().UnixNano() / int64(time.Millisecond)
 			end := e.End().UnixNano() / int64(time.Millisecond)
 			ts := timelineItemTimespan{
