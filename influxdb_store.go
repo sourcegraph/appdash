@@ -41,7 +41,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 
 	// trace_id, span_id & parent_id are set as tags
 	// because InfluxDB tags are indexed & those values
-	// are uselater on queries.
+	// are used later on queries.
 	tags := map[string]string{
 		"trace_id":  id.Trace.String(),
 		"span_id":   id.Span.String(),
