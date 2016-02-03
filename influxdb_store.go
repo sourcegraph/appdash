@@ -106,17 +106,17 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromRow(&s)
-		if err != nil {
-			return trace, nil
-		}
-		span.Annotations = *annotations
 		if span.ID.IsRoot() && rootSpanSet {
 			return nil, errors.New("unexpected multiple root spans")
 		}
 		if span.ID.IsRoot() && !rootSpanSet {
 			isRootSpan = true
 		}
+		annotations, err := annotationsFromRow(&s, isRootSpan)
+		if err != nil {
+			return trace, nil
+		}
+		span.Annotations = *annotations
 		if isRootSpan { // root span.
 			trace.Span = *span
 			rootSpanSet = true
@@ -152,7 +152,7 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromRow(&s)
+		annotations, err := annotationsFromRow(&s, true)
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +192,7 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromRow(&s)
+		annotations, err := annotationsFromRow(&s, false)
 		if err != nil {
 			return nil, err
 		}
@@ -303,7 +303,7 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	return nil
 }
 
-func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
+func annotationsFromRow(r *influxDBModels.Row, isRootSpan bool) (*Annotations, error) {
 	// Actually an influxDBModels.Row represents a single InfluxDB serie.
 	// r.Values[n] is a slice containing span's annotation values.
 	var fields []interface{}
@@ -332,6 +332,9 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 		default:
 			return nil, fmt.Errorf("unexpected field type: %v", reflect.TypeOf(field))
 		}
+		if isRootSpan && ignoreKey(key) {
+			continue
+		}
 		a := Annotation{
 			Key:   key,
 			Value: value,
@@ -340,6 +343,16 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 	}
 
 	return &annotations, nil
+}
+
+func ignoreKey(key string) bool {
+	keysToIgnore := []string{"_schema:HTTPClient"}
+	for _, k := range keysToIgnore {
+		if k == key {
+			return true
+		}
+	}
+	return false
 }
 
 func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
