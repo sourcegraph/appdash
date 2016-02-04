@@ -27,6 +27,9 @@ var _ interface {
 // TODO: should be a constant.
 var zeroID = fmt.Sprintf("%016x", uint64(0))
 
+// pointFields -> influxDBClient.Point.Fields
+type pointFields map[string]interface{}
+
 type InfluxDBStore struct {
 	con           *influxDBClient.Client // InfluxDB client connection.
 	server        *influxDBServer.Server // InfluxDB API server.
@@ -58,7 +61,9 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	if p != nil { // span exists on DB.
 		p.Measurement = spanMeasurementName
 		p.Tags = tags
-		p.Fields = fields
+		// Extends fields in order to preserve the p.Fields
+		// already saved on DB.
+		p.Fields = extendFields(fields, p.Fields)
 	} else { // new span to be saved on DB.
 		p = &influxDBClient.Point{
 			Measurement: spanMeasurementName,
@@ -265,21 +270,29 @@ func (in *InfluxDBStore) findSpanPoint(ID SpanID) (*influxDBClient.Point, error)
 	if len(r.Values) == 0 {
 		return nil, errors.New("unexpected empty series")
 	}
-	p := influxDBClient.Point{}
+	p := influxDBClient.Point{
+		Fields: make(pointFields, 0),
+	}
 	fields := r.Values[0]
 	for i, field := range fields {
 		key := r.Columns[i]
-		if key == "time" {
-			switch field.(type) {
-			case string:
+		switch field.(type) {
+		case string:
+			// time field is set by InfluxDB not related to annotations.
+			if key == "time" {
 				t, err := time.Parse(time.RFC3339Nano, field.(string))
 				if err != nil {
 					return nil, err
 				}
 				p.Time = t
-			default:
-				return nil, fmt.Errorf("unexpected time type: %v", reflect.TypeOf(field))
 			}
+			if key == "Name" {
+				p.Fields[key] = field.(string)
+			}
+		case nil:
+			continue
+		default:
+			return nil, fmt.Errorf("unexpected time type: %v", reflect.TypeOf(field))
 		}
 	}
 	return &p, err
@@ -340,6 +353,16 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 	}
 
 	return &annotations, nil
+}
+
+// extendFields replaces existing items on dst from src.
+func extendFields(dst, src pointFields) pointFields {
+	for k, v := range src {
+		if _, present := dst[k]; present {
+			dst[k] = v
+		}
+	}
+	return dst
 }
 
 func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
