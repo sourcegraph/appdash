@@ -24,8 +24,8 @@ var _ interface {
 	Queryer
 } = (*InfluxDBStore)(nil)
 
-// TODO: should be a constant.
-var zeroID = fmt.Sprintf("%016x", uint64(0))
+// zeroID is ID's zero value as string.
+var zeroID string = ID(0).String()
 
 // pointFields -> influxDBClient.Point.Fields
 type pointFields map[string]interface{}
