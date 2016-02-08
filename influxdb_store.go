@@ -286,13 +286,11 @@ func (in *InfluxDBStore) findSpanPoint(ID SpanID) (*influxDBClient.Point, error)
 				}
 				p.Time = t
 			}
-			if key == "Name" {
-				p.Fields[key] = field.(string)
-			}
+			p.Fields[key] = field.(string)
 		case nil:
 			continue
 		default:
-			return nil, fmt.Errorf("unexpected time type: %v", reflect.TypeOf(field))
+			return nil, fmt.Errorf("unexpected field type: %v", reflect.TypeOf(field))
 		}
 	}
 	return &p, err
