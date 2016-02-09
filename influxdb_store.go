@@ -312,6 +312,7 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	if err := in.createDBIfNotExists(); err != nil {
 		return err
 	}
+	// TODO: support specifying the number of traces per page.
 	in.tracesPerPage = defaultTracesPerPage
 	return nil
 }
