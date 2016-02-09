@@ -61,9 +61,11 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	if p != nil { // span exists on DB.
 		p.Measurement = spanMeasurementName
 		p.Tags = tags
-		// Extends fields in order to preserve the p.Fields
-		// already saved on DB.
-		p.Fields = extendFields(fields, p.Fields)
+		// Using extendFields & withoutEmptyFields in order to have
+		// pointFields that only contain:
+		// - Fields that are not saved on DB.
+		// - Fields that are saved but have empty values.
+		p.Fields = extendFields(fields, withoutEmptyFields(p.Fields))
 	} else { // new span to be saved on DB.
 		p = &influxDBClient.Point{
 			Measurement: spanMeasurementName,
@@ -361,6 +363,26 @@ func extendFields(dst, src pointFields) pointFields {
 		}
 	}
 	return dst
+}
+
+// withoutEmptyFields returns a pointFields without
+// those fields that has empty values.
+func withoutEmptyFields(pf pointFields) pointFields {
+	r := make(pointFields, 0)
+	for k, v := range pf {
+		switch v.(type) {
+		case string:
+			if v.(string) == "" {
+				continue
+			}
+			r[k] = v
+		case nil:
+			continue
+		default:
+			r[k] = v
+		}
+	}
+	return r
 }
 
 func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
