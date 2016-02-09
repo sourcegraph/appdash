@@ -325,11 +325,11 @@ func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 		fields = r.Values[0]
 	}
 
-	// len(r.Values) might be greater than one - meaning there are
-	// some spans to drop, see: InfluxDBStore.Collect(...).
-	// If so last one is picked.
+	// len(r.Values) cannot be greater than 1.
+	// Values[0] is the slice containing a span's
+	// annotation values.
 	if len(r.Values) > 1 {
-		fields = r.Values[len(r.Values)-1]
+		return nil, errors.New("unexpected multiple row values")
 	}
 	annotations := make(Annotations, 0)
 
