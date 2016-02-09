@@ -217,8 +217,8 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	return traces, nil
 }
 
-func (in *InfluxDBStore) Close() {
-	in.server.Close()
+func (in *InfluxDBStore) Close() error {
+	return in.server.Close()
 }
 
 func (in *InfluxDBStore) createDBIfNotExists() error {
