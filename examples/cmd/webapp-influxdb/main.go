@@ -33,7 +33,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create influxdb store, error: %v", err)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 	tapp := traceapp.New(nil)
 	tapp.Store = store
 	tapp.Queryer = store
