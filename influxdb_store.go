@@ -416,7 +416,7 @@ type InfluxDBStoreConfig struct {
 }
 
 func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
-	//TODO: add Authentication.
+	// TODO: add Authentication.
 	s, err := influxDBServer.NewServer(config.Server, config.BuildInfo)
 	if err != nil {
 		return nil, err
