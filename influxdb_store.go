@@ -37,6 +37,8 @@ type InfluxDBStore struct {
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
+	// Find a span's point, if found it will be rewritten with new annotations(`anns`)
+	// if not found, a new span's point will be created.
 	p, err := in.findSpanPoint(id)
 	if err != nil {
 		return err
@@ -62,7 +64,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		p.Measurement = spanMeasurementName
 		p.Tags = tags
 		// Using extendFields & withoutEmptyFields in order to have
-		// pointFields that only contain:
+		// pointFields that only contains:
 		// - Fields that are not saved on DB.
 		// - Fields that are saved but have empty values.
 		p.Fields = extendFields(fields, withoutEmptyFields(p.Fields))
