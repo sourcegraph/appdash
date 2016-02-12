@@ -1,6 +1,10 @@
 package appdash
 
-import "testing"
+import (
+	"sort"
+	"strings"
+	"testing"
+)
 
 func TestMergeSchemasField(t *testing.T) {
 	cases := []struct {
@@ -19,7 +23,9 @@ func TestMergeSchemasField(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got != c.Want {
+		got = sortSchemas(got)
+		want := sortSchemas(c.Want)
+		if got != want {
 			t.Fatalf("case #%d - got: %v, want: %v", i, got, c.Want)
 		}
 	}
@@ -31,9 +37,23 @@ func TestSchemasFromAnnotations(t *testing.T) {
 		Annotation{Key: schemaPrefix + "HTTPServer"},
 		Annotation{Key: schemaPrefix + "name"},
 	}
-	got := schemasFromAnnotations(anns)
-	want := "HTTPClient,HTTPServer,name"
+	got := sortSchemas(schemasFromAnnotations(anns))
+	want := sortSchemas("HTTPClient,HTTPServer,name")
 	if got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }
+
+// sortSchemas sorts schemas(strings) within `s` which is
+// a set of schemas separated by `schemasFieldSeparator`.
+func sortSchemas(s string) string {
+	schemas := strings.Split(s, schemasFieldSeparator)
+	sort.Sort(bySchemaText(schemas))
+	return strings.Join(schemas, schemasFieldSeparator)
+}
+
+type bySchemaText []string
+
+func (bs bySchemaText) Len() int           { return len(bs) }
+func (bs bySchemaText) Swap(i, j int)      { bs[i], bs[j] = bs[j], bs[i] }
+func (bs bySchemaText) Less(i, j int) bool { return bs[i] < bs[j] }
