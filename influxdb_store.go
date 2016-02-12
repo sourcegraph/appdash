@@ -66,6 +66,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	if p != nil { // span exists on DB.
 		p.Measurement = spanMeasurementName
 		p.Tags = tags
+
 		// Using extendFields & withoutEmptyFields in order to have
 		// pointFields that only contains:
 		// - Fields that are not saved on DB.
@@ -75,9 +76,15 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		if err != nil {
 			return err
 		}
+
+		// `schemas` contains the result of merging(without duplications)
+		// schemas already saved on DB and schemas present on `anns`.
 		fields[schemasFieldName] = schemas
 		p.Fields = fields
 	} else { // new span to be saved on DB.
+
+		// A field `schemasFieldName` contains all the schemas found on `anns`.
+		// Eg. fields[schemasFieldName] = "HTTPClient,HTTPServer"
 		fields[schemasFieldName] = schemasFromAnnotations(anns)
 		p = &influxDBClient.Point{
 			Measurement: spanMeasurementName,
@@ -378,9 +385,9 @@ func extendFields(dst, src pointFields) pointFields {
 	return dst
 }
 
-// filterSchemas returns `Annotations` with items taken from `anns`
-// without those items that are not included within the value of
-// the annotation with key: "schemas".
+// filterSchemas returns `Annotations` with items taken from `anns`.
+// It finds the annotation with key: `schemaFieldName`, which is later use
+// to discard schema related annotations not present on it's value.
 func filterSchemas(anns []Annotation) Annotations {
 	var annotations Annotations
 
@@ -388,24 +395,28 @@ func filterSchemas(anns []Annotation) Annotations {
 	schemasAnn := findSchemasAnnotation(anns)
 
 	// Convert it to a string slice which contains the schemas.
+	// Eg. schemas := []string{"HTTPClient", "HTTPServer"}
 	schemas := strings.Split(string(schemasAnn.Value), schemasFieldSeparator)
 
 	// Iterate over `anns` to check if each annotation is a schema related one
 	// if so it's added to the `annotations` be returned, but only if it's present
 	// on `schemas`.
+	// If annotation is not schema related, it's added to annotations returned.
 	for _, a := range anns {
 		if strings.HasPrefix(a.Key, schemaPrefix) {
 			schema := a.Key[len(schemaPrefix):]
+
 			// If schema does not exists; annotation `a` is not added to
 			// the `annotations` be returned because it was not saved
 			// by `Collect(...)`.
 			// But exists because InfluxDB returns all fields(annotations)
 			// even those ones not explicit written by `Collect(...)`.
+			//
 			// Eg. if point "a" is written with a field "foo" &
 			// point "b" with a field "bar" (both "a" & "b" written in the
 			// same  measurement), when querying for those points the result
-			// will contain two fields "foo" & "bar", even though "bar" was
-			// not present when writing Point "a".
+			// will contain two fields "foo" & "bar", even though field "bar"
+			// was not present when writing Point "a".
 			if schemaExists(schema, schemas) {
 				// Schema exists, meaning `Collect(...)` method
 				// saved this annotation.
