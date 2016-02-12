@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strings"
 	"time"
 
 	influxDBClient "github.com/influxdb/influxdb/client"
@@ -13,9 +14,11 @@ import (
 )
 
 const (
-	dbName               string = "appdash" // InfluxDB db name.
-	spanMeasurementName  string = "spans"   // InfluxDB container name for trace spans.
-	defaultTracesPerPage int    = 10        // Default number of traces per page.
+	dbName                string = "appdash" // InfluxDB db name.
+	defaultTracesPerPage  int    = 10        // Default number of traces per page.
+	schemasFieldName      string = "schemas" // Span's measurement field name for schemas field.
+	schemasFieldSeparator string = ","       // Span's measurement character separator for schemas field.
+	spanMeasurementName   string = "spans"   // InfluxDB container name for trace spans.
 )
 
 // Compile-time "implements" check.
@@ -67,8 +70,15 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		// pointFields that only contains:
 		// - Fields that are not saved on DB.
 		// - Fields that are saved but have empty values.
-		p.Fields = extendFields(fields, withoutEmptyFields(p.Fields))
+		fields := extendFields(fields, withoutEmptyFields(p.Fields))
+		schemas, err := mergeSchemasField(schemasFromAnnotations(anns), p.Fields[schemasFieldName])
+		if err != nil {
+			return err
+		}
+		fields[schemasFieldName] = schemas
+		p.Fields = fields
 	} else { // new span to be saved on DB.
+		fields[schemasFieldName] = schemasFromAnnotations(anns)
 		p = &influxDBClient.Point{
 			Measurement: spanMeasurementName,
 			Tags:        tags,   // indexed metadata.
@@ -119,7 +129,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 		if err != nil {
 			return trace, nil
 		}
-		span.Annotations = *annotations
+		span.Annotations = filterSchemas(*annotations)
 		if span.ID.IsRoot() && rootSpanSet {
 			return nil, errors.New("unexpected multiple root spans")
 		}
@@ -205,7 +215,7 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		span.Annotations = *annotations
+		span.Annotations = filterSchemas(*annotations)
 		trace, present := tracesCache[span.ID.Trace]
 		if !present { // Root trace not added.
 			return nil, errors.New("parent not found")
@@ -366,6 +376,131 @@ func extendFields(dst, src pointFields) pointFields {
 		}
 	}
 	return dst
+}
+
+// filterSchemas returns `Annotations` with items taken from `anns`
+// without those items that are not included within the value of
+// the annotation with key: "schemas".
+func filterSchemas(anns []Annotation) Annotations {
+	var annotations Annotations
+
+	// Finds the annotation with key `schemasFieldName`.
+	schemasAnn := findSchemasAnnotation(anns)
+
+	// Convert it to a string slice which contains the schemas.
+	schemas := strings.Split(string(schemasAnn.Value), schemasFieldSeparator)
+
+	// Iterate over `anns` to check if each annotation is a schema related one
+	// if so it's added to the `annotations` be returned, but only if it's present
+	// on `schemas`.
+	for _, a := range anns {
+		if strings.HasPrefix(a.Key, schemaPrefix) {
+			schema := a.Key[len(schemaPrefix):]
+			// If schema does not exists; annotation `a` is not added to
+			// the `annotations` be returned because it was not saved
+			// by `Collect(...)`.
+			// But exists because InfluxDB returns all fields(annotations)
+			// even those ones not explicit written by `Collect(...)`.
+			// Eg. if point "a" is written with a field "foo" &
+			// point "b" with a field "bar" (both "a" & "b" written in the
+			// same  measurement), when querying for those points the result
+			// will contain two fields "foo" & "bar", even though "bar" was
+			// not present when writing Point "a".
+			if schemaExists(schema, schemas) {
+				// Schema exists, meaning `Collect(...)` method
+				// saved this annotation.
+				annotations = append(annotations, a)
+			}
+		} else {
+			// Not a schema related annotation so just add it.
+			annotations = append(annotations, a)
+		}
+	}
+	return annotations
+}
+
+// schemaExists checks if `schema` is present on `schemas`.
+func schemaExists(schema string, schemas []string) bool {
+	for _, s := range schemas {
+		if schema == s {
+			return true
+		}
+	}
+	return false
+}
+
+// findSchemasAnnotation finds & returns an annotation
+// with key: `schemasFieldName`.
+func findSchemasAnnotation(anns []Annotation) *Annotation {
+	for _, a := range anns {
+		if a.Key == schemasFieldName {
+			return &a
+		}
+	}
+	return nil
+}
+
+// mergeSchemasField merges new and old which are a set of schemas(strings)
+// separated by `schemasFieldSeparator` - eg. "HTTPClient,HTTPServer"
+// Returns the result of merging new & old without duplications.
+func mergeSchemasField(new, old interface{}) (string, error) {
+	// Since both new and old are same data structures
+	// (a set of strings separated by `schemasFieldSeparator`)
+	// same code logic is applied.
+	fields := []interface{}{new, old}
+	var strFields []string
+
+	// Iterate over fields in order to cast each to string type
+	// and append it to `strFields` for later usage.
+	for _, field := range fields {
+		switch field.(type) {
+		case string:
+			strFields = append(strFields, field.(string))
+		case nil:
+			continue
+		default:
+			return "", fmt.Errorf("unexpected event field type: %v", reflect.TypeOf(field))
+		}
+	}
+
+	// Cache for schemas; used to keep track of non duplicated schemas
+	// to be returned.
+	schemas := make(map[string]string, 0)
+
+	// Iterate over `strFields` to transform each to a slice([]string)
+	// which each element is an schema that are added to schemas cache.
+	for _, strField := range strFields {
+		if strField == "" {
+			continue
+		}
+		sf := strings.Split(strField, schemasFieldSeparator)
+		for _, s := range sf {
+			if _, found := schemas[s]; !found {
+				schemas[s] = s
+			}
+		}
+	}
+
+	var result []string
+	for k, _ := range schemas {
+		result = append(result, k)
+	}
+
+	// Return a string which contains all the schemas separated by `schemasFieldSeparator`.
+	return strings.Join(result, schemasFieldSeparator), nil
+}
+
+// schemasFromAnnotations finds schemas in `anns` and builds a data structure
+// which is a set of all schemas found, those are separated by `schemasFieldSeparator`
+// and returned as string.
+func schemasFromAnnotations(anns []Annotation) string {
+	var schemas []string
+	for _, ann := range anns {
+		if strings.HasPrefix(ann.Key, schemaPrefix) { // Check if is an annotation for a schema.
+			schemas = append(schemas, ann.Key[len(schemaPrefix):])
+		}
+	}
+	return strings.Join(schemas, schemasFieldSeparator)
 }
 
 // withoutEmptyFields returns a pointFields without
