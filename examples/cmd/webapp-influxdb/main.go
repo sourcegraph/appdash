@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 
-	influxDBServer "github.com/influxdb/influxdb/cmd/influxd/run"
+	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
 )
 
 const CtxSpanID = 0

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	influxDBClient "github.com/influxdb/influxdb/client"
-	influxDBServer "github.com/influxdb/influxdb/cmd/influxd/run"
-	influxDBModels "github.com/influxdb/influxdb/models"
+	influxDBClient "github.com/influxdata/influxdb/client"
+	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
+	influxDBModels "github.com/influxdata/influxdb/models"
 )
 
 const (
