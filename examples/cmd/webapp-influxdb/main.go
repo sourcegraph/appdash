@@ -26,7 +26,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create influxdb config, error: %v", err)
 	}
+
+	// Enables InfluxDB server authentication.
+	conf.HTTPD.AuthEnabled = true
+
+	// InfluxDB server auth credentials.
+	// If user does not exist yet it will
+	// created as admin user.
+	user := appdash.InfluxDBAdminUser{Username: "demo", Password: "demo"}
+
 	store, err := appdash.NewInfluxDBStore(appdash.InfluxDBStoreConfig{
+		AdminUser: user,
 		Server:    conf,
 		BuildInfo: &influxDBServer.BuildInfo{},
 	})

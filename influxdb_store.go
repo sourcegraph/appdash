@@ -11,6 +11,7 @@ import (
 	influxDBClient "github.com/influxdata/influxdb/client"
 	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
 	influxDBModels "github.com/influxdata/influxdb/models"
+	influxDBErrors "github.com/influxdata/influxdb/services/meta"
 )
 
 const (
@@ -34,6 +35,7 @@ var zeroID string = ID(0).String()
 type pointFields map[string]interface{}
 
 type InfluxDBStore struct {
+	adminUser     InfluxDBAdminUser      // InfluxDB server auth credentials.
 	con           *influxDBClient.Client // InfluxDB client connection.
 	server        *influxDBServer.Server // InfluxDB API server.
 	tracesPerPage int                    // Number of traces per page.
@@ -254,6 +256,24 @@ func (in *InfluxDBStore) createDBIfNotExists() error {
 	return nil
 }
 
+// createAdminUserIfNotExists creates an admin user
+// using `in.adminUser` credentials if does not exist.
+func (in *InfluxDBStore) createAdminUserIfNotExists() error {
+	userInfo, err := in.server.MetaClient.Authenticate(in.adminUser.Username, in.adminUser.Password)
+	if err == influxDBErrors.ErrUserNotFound {
+		if _, createUserErr := in.server.MetaClient.CreateUser(in.adminUser.Username, in.adminUser.Password, true); createUserErr != nil {
+			return createUserErr
+		}
+		return nil
+	} else {
+		return err
+	}
+	if !userInfo.Admin {
+		return errors.New("failed to validate InfluxDB user type, found non-admin user")
+	}
+	return nil
+}
+
 func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result, error) {
 	response, err := in.con.Query(influxDBClient.Query{
 		Command:  command,
@@ -323,11 +343,18 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	if err != nil {
 		return err
 	}
-	con, err := influxDBClient.NewClient(influxDBClient.Config{URL: *url})
+	con, err := influxDBClient.NewClient(influxDBClient.Config{
+		URL:      *url,
+		Username: in.adminUser.Username,
+		Password: in.adminUser.Password,
+	})
 	if err != nil {
 		return err
 	}
 	in.con = con
+	if err := in.createAdminUserIfNotExists(); err != nil {
+		return err
+	}
 	if err := in.createDBIfNotExists(); err != nil {
 		return err
 	}
@@ -557,12 +584,17 @@ func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
 }
 
 type InfluxDBStoreConfig struct {
-	Server    *influxDBServer.Config
 	BuildInfo *influxDBServer.BuildInfo
+	Server    *influxDBServer.Config
+	AdminUser InfluxDBAdminUser
+}
+
+type InfluxDBAdminUser struct {
+	Username string
+	Password string
 }
 
 func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
-	// TODO: add Authentication.
 	s, err := influxDBServer.NewServer(config.Server, config.BuildInfo)
 	if err != nil {
 		return nil, err
@@ -570,7 +602,7 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 	if err := s.Open(); err != nil {
 		return nil, err
 	}
-	var in InfluxDBStore
+	in := InfluxDBStore{adminUser: config.AdminUser}
 	if err := in.init(s); err != nil {
 		return nil, err
 	}
