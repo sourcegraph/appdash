@@ -30,9 +30,8 @@ func main() {
 	// Enables InfluxDB server authentication.
 	conf.HTTPD.AuthEnabled = true
 
-	// InfluxDB server auth credentials.
-	// If user does not exist yet it will
-	// created as admin user.
+	// InfluxDB server auth credentials. If user does not exist yet it will
+	// be created as admin user.
 	user := appdash.InfluxDBAdminUser{Username: "demo", Password: "demo"}
 
 	store, err := appdash.NewInfluxDBStore(appdash.InfluxDBStoreConfig{
