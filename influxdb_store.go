@@ -15,11 +15,20 @@ import (
 )
 
 const (
-	dbName                string = "appdash" // InfluxDB db name.
-	defaultTracesPerPage  int    = 10        // Default number of traces per page.
-	schemasFieldName      string = "schemas" // Span's measurement field name for schemas field.
-	schemasFieldSeparator string = ","       // Span's measurement character separator for schemas field.
-	spanMeasurementName   string = "spans"   // InfluxDB container name for trace spans.
+	// InfluxDB db name.
+	dbName string = "appdash"
+
+	// Default number of traces per page.
+	defaultTracesPerPage int = 10
+
+	// Span's measurement field name for schemas field.
+	schemasFieldName string = "schemas"
+
+	// Span's measurement character separator for schemas field.
+	schemasFieldSeparator string = ","
+
+	// InfluxDB container name for trace spans.
+	spanMeasurementName string = "spans"
 )
 
 // Compile-time "implements" check.
@@ -30,6 +39,8 @@ var _ interface {
 
 // zeroID is ID's zero value as string.
 var zeroID string = ID(0).String()
+
+var errAdminUserRequired = errors.New("admin user required")
 
 // pointFields -> influxDBClient.Point.Fields
 type pointFields map[string]interface{}
@@ -42,8 +53,8 @@ type InfluxDBStore struct {
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
-	// Find a span's point, if found it will be rewritten with new annotations(`anns`)
-	// if not found, a new span's point will be created.
+	// Find a span's point, if found it will be rewritten with new
+	// annotations(`anns`) if not found, a new span's point will be created.
 	p, err := in.findSpanPoint(id)
 	if err != nil {
 		return err
@@ -74,7 +85,8 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		// - Fields that are not saved on DB.
 		// - Fields that are saved but have empty values.
 		fields := extendFields(fields, withoutEmptyFields(p.Fields))
-		schemas, err := mergeSchemasField(schemasFromAnnotations(anns), p.Fields[schemasFieldName])
+		schemas, err := mergeSchemasField(schemasFromAnnotations(anns),
+			p.Fields[schemasFieldName])
 		if err != nil {
 			return err
 		}
@@ -114,7 +126,8 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	trace := &Trace{}
 
 	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
-	// grouping by all tags includes those and it's values on the query response.
+	// grouping by all tags includes those and it's values on the query
+	// response.
 	q := fmt.Sprintf("SELECT * FROM spans WHERE trace_id='%s' GROUP BY *", id)
 	result, err := in.executeOneQuery(q)
 	if err != nil {
@@ -159,8 +172,10 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	traces := make([]*Trace, 0)
 
 	// GROUP BY * -> meaning group by all tags(trace_id, span_id & parent_id)
-	// grouping by all tags includes those and it's values on the query response.
-	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s' GROUP BY * LIMIT %d", zeroID, in.tracesPerPage)
+	// grouping by all tags includes those and it's values on the query
+	// response.
+	q := "SELECT * FROM spans WHERE parent_id='%s' GROUP BY * LIMIT %d"
+	rootSpansQuery := fmt.Sprintf(q, zeroID, in.tracesPerPage)
 	rootSpansResult, err := in.executeOneQuery(rootSpansQuery)
 	if err != nil {
 		return nil, err
@@ -197,7 +212,8 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	where := `WHERE `
 	var i int = 1
 	for _, trace := range tracesCache {
-		where += fmt.Sprintf("(trace_id='%s' AND parent_id!='%s')", trace.Span.ID.Trace, zeroID)
+		where += fmt.Sprintf("(trace_id='%s' AND parent_id!='%s')",
+			trace.Span.ID.Trace, zeroID)
 
 		// Adds 'OR' except for last iteration.
 		if i != len(tracesCache) && len(tracesCache) > 1 {
@@ -207,7 +223,8 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 	}
 
 	// Queries for all children spans of the traces to be returned.
-	childrenSpansQuery := fmt.Sprintf("SELECT * FROM spans %s GROUP BY *", where)
+	childrenSpansQuery := fmt.Sprintf("SELECT * FROM spans %s GROUP BY *",
+		where)
 	childrenSpansResult, err := in.executeOneQuery(childrenSpansQuery)
 	if err != nil {
 		return nil, err
@@ -243,7 +260,8 @@ func (in *InfluxDBStore) Close() error {
 }
 
 func (in *InfluxDBStore) createDBIfNotExists() error {
-	// If no errors query execution was successfully - either DB was created or already exists.
+	// If no errors query execution was successfully - either DB was created or
+	// already exists.
 	response, err := in.con.Query(influxDBClient.Query{
 		Command: fmt.Sprintf("%s %s", "CREATE DATABASE IF NOT EXISTS", dbName),
 	})
@@ -259,9 +277,12 @@ func (in *InfluxDBStore) createDBIfNotExists() error {
 // createAdminUserIfNotExists creates an admin user
 // using `in.adminUser` credentials if does not exist.
 func (in *InfluxDBStore) createAdminUserIfNotExists() error {
-	userInfo, err := in.server.MetaClient.Authenticate(in.adminUser.Username, in.adminUser.Password)
+	userInfo, err := in.server.MetaClient.Authenticate(in.adminUser.Username,
+		in.adminUser.Password)
 	if err == influxDBErrors.ErrUserNotFound {
-		if _, createUserErr := in.server.MetaClient.CreateUser(in.adminUser.Username, in.adminUser.Password, true); createUserErr != nil {
+		_, createUserErr := in.server.MetaClient.CreateUser(
+			in.adminUser.Username, in.adminUser.Password, true)
+		if createUserErr != nil {
 			return createUserErr
 		}
 		return nil
@@ -269,7 +290,7 @@ func (in *InfluxDBStore) createAdminUserIfNotExists() error {
 		return err
 	}
 	if !userInfo.Admin {
-		return errors.New("failed to validate InfluxDB user type, found non-admin user")
+		return errAdminUserRequired
 	}
 	return nil
 }
