@@ -69,6 +69,7 @@ func TestInfluxDBStore(t *testing.T) {
 				Annotation{Key: "Name", Value: []byte("/")},
 				Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
 				Annotation{Key: clientEventKey, Value: []byte("")},
+				Annotation{Key: serverEventKey, Value: []byte("")},
 			},
 		},
 		Sub: []*Trace{
@@ -120,16 +121,17 @@ func TestInfluxDBStore(t *testing.T) {
 	}
 
 	// Find many traces.
-	//traces, err := store.Traces()
-	//if err != nil {
-	//t.Fatalf("unexpected error: %+v", err)
-	//}
-	//if len(traces) != 1 {
-	//t.Fatalf("unexpected quantity of traces, want: %v, got: %v", 1, len(traces))
-	//}
-	//if !reflect.DeepEqual(trace, traces[0]) {
-	//t.Fatalf("unexpected trace, want: %+v, got: %+v", trace, traces[0])
-	//}
+	traces, err := store.Traces()
+	if err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("unexpected quantity of traces, want: %v, got: %v", 1, len(traces))
+	}
+	sortAnnotations(*traces[0])
+	if !reflect.DeepEqual(*traces[0], wantTrace) {
+		t.Fatalf("got: %v, want: %v", traces[0], wantTrace)
+	}
 }
 
 func newStore(t *testing.T) *InfluxDBStore {
