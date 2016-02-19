@@ -1,9 +1,14 @@
 package appdash
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"sourcegraph.com/sourcegraph/appdash/httptrace"
+
+	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
 )
 
 func TestMergeSchemasField(t *testing.T) {
@@ -44,12 +49,143 @@ func TestSchemasFromAnnotations(t *testing.T) {
 	}
 }
 
+func TestInfluxDBStore(t *testing.T) {
+	store := newStore(t)
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	clientEvent := httptrace.ClientEvent{}
+	serverEvent := httptrace.ServerEvent{}
+
+	trace := Trace{
+		Span: Span{
+			ID: SpanID{1, 2, ID(0)},
+			Annotations: Annotations{
+				Annotation{Key: "Name", Value: []byte("/")},
+				Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+				Annotation{Key: schemaPrefix + serverEvent.Schema(), Value: []byte("")},
+			},
+		},
+		Sub: []*Trace{
+			&Trace{
+				Span: Span{
+					ID: SpanID{Trace: 1, Span: 11, Parent: 1},
+					Annotations: Annotations{
+						Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
+						Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+						Annotation{Key: schemaPrefix + clientEvent.Schema(), Value: []byte("")},
+						Annotation{Key: schemaPrefix + serverEvent.Schema(), Value: []byte("")},
+					},
+				},
+			},
+		},
+	}
+
+	// Collect root span.
+	if err := store.Collect(trace.Span.ID, trace.Span.Annotations...); err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+
+	// Collect first child span.
+	if err := store.Collect(trace.Sub[0].Span.ID, trace.Sub[0].Span.Annotations...); err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+
+	// Find one trace.
+	savedTrace, err := store.Trace(trace.Span.ID.Trace)
+	if err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+	if savedTrace == nil {
+		t.Fatalf("expected trace, got nil")
+	}
+	// Non-deterministic keys:
+	// - "time" added by InfluxDB.
+	// - "schemas" see: `schemasFieldName` within `InfluxDBStore.Collect(...)`.
+	keys := []string{"time", "schemas"}
+
+	// Using extendAnnotations in order to create a trace which includes those
+	// non-deterministic annotations with keys included in `fields` and values
+	// taken from `savedTrace`.
+	wantTrace := extendAnnotations(trace, *savedTrace, keys)
+
+	sortAnnotations(*savedTrace, wantTrace)
+	if !reflect.DeepEqual(*savedTrace, wantTrace) {
+		t.Fatalf("got: %v, want: %v", savedTrace, wantTrace)
+	}
+
+	// Find many traces.
+	//traces, err := store.Traces()
+	//if err != nil {
+	//t.Fatalf("unexpected error: %+v", err)
+	//}
+	//if len(traces) != 1 {
+	//t.Fatalf("unexpected quantity of traces, want: %v, got: %v", 1, len(traces))
+	//}
+	//if !reflect.DeepEqual(trace, traces[0]) {
+	//t.Fatalf("unexpected trace, want: %+v, got: %+v", trace, traces[0])
+	//}
+}
+
+func newStore(t *testing.T) *InfluxDBStore {
+	conf, err := influxDBServer.NewDemoConfig()
+	if err != nil {
+		t.Fatalf("failed to create influxdb config, error: %v", err)
+	}
+	conf.HTTPD.AuthEnabled = true
+	user := InfluxDBAdminUser{Username: "demo", Password: "demo"}
+	store, err := NewInfluxDBStore(InfluxDBStoreConfig{
+		AdminUser: user,
+		Server:    conf,
+		BuildInfo: &influxDBServer.BuildInfo{},
+		Mode:      testMode,
+	})
+	if err != nil {
+		t.Fatalf("failed to create influxdb store, error: %v", err)
+	}
+	return store
+}
+
+// extendAnnotations creates & returns a new Trace which is a copy of `dst`.
+// Trace returned has `annotations` copied from `src` but only those
+// with keys included on `keys`.
+func extendAnnotations(dst, src Trace, keys []string) Trace {
+	t := dst
+	for _, k := range keys {
+		t.Span.Annotations = append(t.Span.Annotations, Annotation{
+			Key:   k,
+			Value: src.Span.Annotations.get(k),
+		})
+	}
+	for i, sub := range t.Sub {
+		for _, k := range keys {
+			sub.Span.Annotations = append(sub.Span.Annotations, Annotation{
+				Key:   k,
+				Value: src.Sub[i].Span.Annotations.get(k),
+			})
+		}
+	}
+	return t
+}
+
 // sortSchemas sorts schemas(strings) within `s` which is
 // a set of schemas separated by `schemasFieldSeparator`.
 func sortSchemas(s string) string {
 	schemas := strings.Split(s, schemasFieldSeparator)
 	sort.Sort(bySchemaText(schemas))
 	return strings.Join(schemas, schemasFieldSeparator)
+}
+
+func sortAnnotations(traces ...Trace) {
+	for _, t := range traces {
+		sort.Sort(annotations(t.Span.Annotations))
+		for _, s := range t.Sub {
+			sort.Sort(annotations(s.Span.Annotations))
+		}
+	}
 }
 
 type bySchemaText []string
