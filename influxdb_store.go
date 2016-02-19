@@ -15,11 +15,19 @@ import (
 )
 
 const (
-	dbName                string = "appdash" // InfluxDB db name.
-	defaultTracesPerPage  int    = 10        // Default number of traces per page.
-	schemasFieldName      string = "schemas" // Span's measurement field name for schemas field.
-	schemasFieldSeparator string = ","       // Span's measurement character separator for schemas field.
-	spanMeasurementName   string = "spans"   // InfluxDB container name for trace spans.
+	defaultTracesPerPage  int    = 10             // Default number of traces per page.
+	releaseDBName         string = "appdash"      // InfluxDB release DB name.
+	schemasFieldName      string = "schemas"      // Span's measurement field name for schemas field.
+	schemasFieldSeparator string = ","            // Span's measurement character separator for schemas field.
+	spanMeasurementName   string = "spans"        // InfluxDB container name for trace spans.
+	testDBName            string = "appdash_test" // InfluxDB test DB name.
+)
+
+type mode int
+
+const (
+	releaseMode mode = iota // Default InfluxDBStore mode.
+	testMode                // Used to setup InfluxDBStore for tests.
 )
 
 // Compile-time "implements" check.
@@ -35,8 +43,12 @@ var zeroID string = ID(0).String()
 type pointFields map[string]interface{}
 
 type InfluxDBStore struct {
-	adminUser     InfluxDBAdminUser      // InfluxDB server auth credentials.
-	con           *influxDBClient.Client // InfluxDB client connection.
+	adminUser InfluxDBAdminUser      // InfluxDB server auth credentials.
+	con       *influxDBClient.Client // InfluxDB client connection.
+	dbName    string                 // InfluxDB database name for this store.
+
+	// When set to `testMode` - `testDBName` will be dropped and created, so newly database is ready for tests.
+	mode          mode                   // Used to check current mode(release or test).
 	server        *influxDBServer.Server // InfluxDB API server.
 	tracesPerPage int                    // Number of traces per page.
 }
@@ -100,7 +112,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	pts := []influxDBClient.Point{*p}
 	bps := influxDBClient.BatchPoints{
 		Points:          pts,
-		Database:        dbName,
+		Database:        in.dbName,
 		RetentionPolicy: "default",
 	}
 	_, writeErr := in.con.Write(bps)
@@ -245,7 +257,7 @@ func (in *InfluxDBStore) Close() error {
 func (in *InfluxDBStore) createDBIfNotExists() error {
 	// If no errors query execution was successfully - either DB was created or already exists.
 	response, err := in.con.Query(influxDBClient.Query{
-		Command: fmt.Sprintf("%s %s", "CREATE DATABASE IF NOT EXISTS", dbName),
+		Command: fmt.Sprintf("%s %s", "CREATE DATABASE IF NOT EXISTS", in.dbName),
 	})
 	if err != nil {
 		return err
@@ -277,7 +289,7 @@ func (in *InfluxDBStore) createAdminUserIfNotExists() error {
 func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result, error) {
 	response, err := in.con.Query(influxDBClient.Query{
 		Command:  command,
-		Database: dbName,
+		Database: in.dbName,
 	})
 	if err != nil {
 		return nil, err
@@ -355,11 +367,44 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	if err := in.createAdminUserIfNotExists(); err != nil {
 		return err
 	}
+	switch in.mode {
+	case releaseMode:
+		if err := in.setUpReleaseMode(); err != nil {
+			return err
+		}
+	case testMode:
+		if err := in.setUpTestMode(); err != nil {
+			return err
+		}
+	default:
+		if err := in.setUpReleaseMode(); err != nil {
+			return err
+		}
+	}
 	if err := in.createDBIfNotExists(); err != nil {
 		return err
 	}
 	// TODO: support specifying the number of traces per page.
 	in.tracesPerPage = defaultTracesPerPage
+	return nil
+}
+
+func (in *InfluxDBStore) setUpReleaseMode() error {
+	in.dbName = releaseDBName
+	return nil
+}
+
+func (in *InfluxDBStore) setUpTestMode() error {
+	in.dbName = testDBName
+	response, err := in.con.Query(influxDBClient.Query{
+		Command: fmt.Sprintf("DROP DATABASE IF EXISTS %s", testDBName),
+	})
+	if err != nil {
+		return err
+	}
+	if response.Error() != nil {
+		return response.Error()
+	}
 	return nil
 }
 
@@ -587,6 +632,7 @@ type InfluxDBStoreConfig struct {
 	BuildInfo *influxDBServer.BuildInfo
 	Server    *influxDBServer.Config
 	AdminUser InfluxDBAdminUser
+	Mode      mode
 }
 
 type InfluxDBAdminUser struct {
@@ -602,7 +648,10 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 	if err := s.Open(); err != nil {
 		return nil, err
 	}
-	in := InfluxDBStore{adminUser: config.AdminUser}
+	in := InfluxDBStore{
+		adminUser: config.AdminUser,
+		mode:      config.Mode,
+	}
 	if err := in.init(s); err != nil {
 		return nil, err
 	}
