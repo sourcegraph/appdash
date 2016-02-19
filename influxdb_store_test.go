@@ -6,9 +6,15 @@ import (
 	"strings"
 	"testing"
 
-	"sourcegraph.com/sourcegraph/appdash/httptrace"
-
 	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
+)
+
+const (
+	clientEventKey    string = schemaPrefix + clientEventSchema
+	clientEventSchema string = "HTTPClient"
+	serverEventKey    string = schemaPrefix + serverEventSchema
+	serverEventSchema string = "HTTPServer"
+	spanNameSchema    string = "name"
 )
 
 func TestMergeSchemasField(t *testing.T) {
@@ -56,17 +62,13 @@ func TestInfluxDBStore(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-
-	clientEvent := httptrace.ClientEvent{}
-	serverEvent := httptrace.ServerEvent{}
-
 	trace := Trace{
 		Span: Span{
 			ID: SpanID{1, 2, ID(0)},
 			Annotations: Annotations{
 				Annotation{Key: "Name", Value: []byte("/")},
 				Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-				Annotation{Key: schemaPrefix + serverEvent.Schema(), Value: []byte("")},
+				Annotation{Key: clientEventKey, Value: []byte("")},
 			},
 		},
 		Sub: []*Trace{
@@ -76,8 +78,8 @@ func TestInfluxDBStore(t *testing.T) {
 					Annotations: Annotations{
 						Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
 						Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-						Annotation{Key: schemaPrefix + clientEvent.Schema(), Value: []byte("")},
-						Annotation{Key: schemaPrefix + serverEvent.Schema(), Value: []byte("")},
+						Annotation{Key: clientEventKey, Value: []byte("")},
+						Annotation{Key: serverEventKey, Value: []byte("")},
 					},
 				},
 			},
