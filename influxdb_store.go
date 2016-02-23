@@ -20,7 +20,7 @@ const (
 	schemasFieldName      string = "schemas"      // Span's measurement field name for schemas field.
 	schemasFieldSeparator string = ","            // Span's measurement character separator for schemas field.
 	spanMeasurementName   string = "spans"        // InfluxDB container name for trace spans.
-	testDBName            string = "appdash_test" // InfluxDB test DB name.
+	testDBName            string = "appdash_test" // InfluxDB test DB name (will be deleted entirely in test mode).
 )
 
 type mode int
@@ -262,8 +262,8 @@ func (in *InfluxDBStore) createDBIfNotExists() error {
 	if err != nil {
 		return err
 	}
-	if response.Error() != nil {
-		return response.Error()
+	if err := response.Error(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -294,8 +294,8 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 	if err != nil {
 		return nil, err
 	}
-	if response.Error() != nil {
-		return nil, response.Error()
+	if err := response.Error(); err != nil {
+		return nil, err
 	}
 
 	// Expecting one result, since a single query is executed.
@@ -368,10 +368,6 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 		return err
 	}
 	switch in.mode {
-	case releaseMode:
-		if err := in.setUpReleaseMode(); err != nil {
-			return err
-		}
 	case testMode:
 		if err := in.setUpTestMode(); err != nil {
 			return err
@@ -402,8 +398,8 @@ func (in *InfluxDBStore) setUpTestMode() error {
 	if err != nil {
 		return err
 	}
-	if response.Error() != nil {
-		return response.Error()
+	if err := response.Error(); err != nil {
+		return err
 	}
 	return nil
 }
