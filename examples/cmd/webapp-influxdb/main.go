@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 
 	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
+	"github.com/influxdata/influxdb/toml"
 )
 
 const CtxSpanID = 0
@@ -30,14 +31,24 @@ func main() {
 	// Enables InfluxDB server authentication.
 	conf.HTTPD.AuthEnabled = true
 
+	// Enables retention policies which will be executed within an interval of 30 minutes.
+	conf.Retention.Enabled = true
+	conf.Retention.CheckInterval = toml.Duration(30 * time.Minute)
+
 	// InfluxDB server auth credentials. If user does not exist yet it will
 	// be created as admin user.
 	user := appdash.InfluxDBAdminUser{Username: "demo", Password: "demo"}
 
+	// Retention policy named "one_day_only" with a duration of "1d" - meaning db data older than "1d" will be deleted
+	// with an interval checking set by `conf.Retention.CheckInterval`.
+	// Minimum duration time is 1 hour ("1h") - See: github.com/influxdata/influxdb/issues/5198
+	defaultRP := appdash.InfluxDBRetentionPolicy{Name: "one_day_only", Duration: "1d"}
+
 	store, err := appdash.NewInfluxDBStore(appdash.InfluxDBStoreConfig{
 		AdminUser: user,
-		Server:    conf,
 		BuildInfo: &influxDBServer.BuildInfo{},
+		DefaultRP: defaultRP,
+		Server:    conf,
 	})
 	if err != nil {
 		log.Fatalf("failed to create influxdb store, error: %v", err)

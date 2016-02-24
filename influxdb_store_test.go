@@ -141,11 +141,13 @@ func newStore(t *testing.T) *InfluxDBStore {
 	}
 	conf.HTTPD.AuthEnabled = true
 	user := InfluxDBAdminUser{Username: "demo", Password: "demo"}
+	defaultRP := InfluxDBRetentionPolicy{Name: "one_hour_only", Duration: "1h"}
 	store, err := NewInfluxDBStore(InfluxDBStoreConfig{
 		AdminUser: user,
-		Server:    conf,
 		BuildInfo: &influxDBServer.BuildInfo{},
+		DefaultRP: defaultRP,
 		Mode:      testMode,
+		Server:    conf,
 	})
 	if err != nil {
 		t.Fatalf("failed to create influxdb store, error: %v", err)

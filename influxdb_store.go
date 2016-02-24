@@ -43,9 +43,10 @@ var zeroID string = ID(0).String()
 type pointFields map[string]interface{}
 
 type InfluxDBStore struct {
-	adminUser InfluxDBAdminUser      // InfluxDB server auth credentials.
-	con       *influxDBClient.Client // InfluxDB client connection.
-	dbName    string                 // InfluxDB database name for this store.
+	adminUser InfluxDBAdminUser       // InfluxDB server auth credentials.
+	con       *influxDBClient.Client  // InfluxDB client connection.
+	dbName    string                  // InfluxDB database name for this store.
+	defaultRP InfluxDBRetentionPolicy // Default retention policy for `dbName`.
 
 	// When set to `testMode` - `testDBName` will be dropped and created, so newly database is ready for tests.
 	mode          mode                   // Used to check current mode(release or test).
@@ -111,9 +112,8 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	// InfluxDB point represents a single span.
 	pts := []influxDBClient.Point{*p}
 	bps := influxDBClient.BatchPoints{
-		Points:          pts,
-		Database:        in.dbName,
-		RetentionPolicy: "default",
+		Points:   pts,
+		Database: in.dbName,
 	}
 	_, writeErr := in.con.Write(bps)
 	if writeErr != nil {
@@ -255,10 +255,21 @@ func (in *InfluxDBStore) Close() error {
 }
 
 func (in *InfluxDBStore) createDBIfNotExists() error {
+	q := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", in.dbName)
+
+	// If `in.defaultRP` info is provided, it's used to extend the query in order to create the database with
+	// a default retention policy.
+	if in.defaultRP.Duration != "" {
+		q = fmt.Sprintf("%s WITH DURATION %s", q, in.defaultRP.Duration)
+
+		// Retention policy name must be placed to the end of the query or it will be syntactically incorrect.
+		if in.defaultRP.Name != "" {
+			q = fmt.Sprintf("%s NAME %s", q, in.defaultRP.Name)
+		}
+	}
+
 	// If no errors query execution was successfully - either DB was created or already exists.
-	response, err := in.con.Query(influxDBClient.Query{
-		Command: fmt.Sprintf("%s %s", "CREATE DATABASE IF NOT EXISTS", in.dbName),
-	})
+	response, err := in.con.Query(influxDBClient.Query{Command: q})
 	if err != nil {
 		return err
 	}
@@ -624,11 +635,17 @@ func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
 	return span, nil
 }
 
+type InfluxDBRetentionPolicy struct {
+	Name     string // Name used to indentify this retention policy.
+	Duration string // How long InfluxDB keeps the data. Eg: "1h", "1d", "1w".
+}
+
 type InfluxDBStoreConfig struct {
-	BuildInfo *influxDBServer.BuildInfo
-	Server    *influxDBServer.Config
 	AdminUser InfluxDBAdminUser
+	BuildInfo *influxDBServer.BuildInfo
+	DefaultRP InfluxDBRetentionPolicy
 	Mode      mode
+	Server    *influxDBServer.Config
 }
 
 type InfluxDBAdminUser struct {
@@ -646,6 +663,7 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 	}
 	in := InfluxDBStore{
 		adminUser: config.AdminUser,
+		defaultRP: config.DefaultRP,
 		mode:      config.Mode,
 	}
 	if err := in.init(s); err != nil {
