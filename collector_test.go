@@ -229,6 +229,31 @@ func TestChunkedCollector(t *testing.T) {
 	}
 }
 
+func TestChunkedCollectorFlushTimeout(t *testing.T) {
+	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		time.Sleep(200 * time.Millisecond) // Slow collector
+		return nil
+	})
+
+	cc := &ChunkedCollector{
+		Collector:    mc,
+		MinInterval:  10 * time.Millisecond,
+		FlushTimeout: 1 * time.Second,
+	}
+
+	for i := 0; i < 100; i++ {
+		cc.Collect(NewRootSpanID(), Annotation{"k1", []byte("v1")})
+	}
+
+	err := cc.Flush()
+	if err != ErrFlushTimeout {
+		t.Fatal("got", err, "expected", ErrFlushTimeout)
+	}
+	if len(cc.pendingBySpanID) != 0 {
+		t.Fatal("got", len(cc.pendingBySpanID), "queued but expected 0")
+	}
+}
+
 // collectorFunc implements the Collector interface by calling the function.
 type collectorFunc func(SpanID, ...Annotation) error
 
