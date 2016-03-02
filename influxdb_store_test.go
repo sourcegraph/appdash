@@ -55,6 +55,65 @@ func TestSchemasFromAnnotations(t *testing.T) {
 	}
 }
 
+func TestFindTraceParent(t *testing.T) {
+	trace := Trace{
+		Span: Span{
+			ID: SpanID{Trace: 1, Span: 100, Parent: 0},
+		},
+		Sub: []*Trace{
+			&Trace{
+				Span: Span{
+					ID: SpanID{Trace: 1, Span: 11, Parent: 100},
+				},
+				Sub: []*Trace{
+					&Trace{
+						Span: Span{
+							ID: SpanID{Trace: 1, Span: 111, Parent: 11},
+						},
+						Sub: []*Trace{
+							&Trace{
+								Span: Span{
+									ID: SpanID{Trace: 1, Span: 1111, Parent: 111},
+								},
+							},
+						},
+					},
+					&Trace{
+						Span: Span{
+							ID: SpanID{Trace: 1, Span: 112, Parent: 11},
+						},
+						Sub: []*Trace{
+							&Trace{
+								Span: Span{
+									ID: SpanID{Trace: 1, Span: 1112, Parent: 112},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	cases := []struct {
+		Parent *Trace
+		Child  *Trace
+	}{
+		{nil, &trace},
+		{nil, &Trace{}},
+		{&trace, trace.Sub[0]},
+		{trace.Sub[0], trace.Sub[0].Sub[0]},
+		{trace.Sub[0], trace.Sub[0].Sub[1]},
+		{trace.Sub[0].Sub[0], trace.Sub[0].Sub[0].Sub[0]},
+		{trace.Sub[0].Sub[1], trace.Sub[0].Sub[1].Sub[0]},
+	}
+	for i, c := range cases {
+		got := findTraceParent(&trace, c.Child)
+		if got != c.Parent {
+			t.Fatalf("case: %d - got: %v, want: %v", i, got, c.Parent)
+		}
+	}
+}
+
 func TestInfluxDBStore(t *testing.T) {
 	store := newStore(t)
 	defer func() {
@@ -62,75 +121,132 @@ func TestInfluxDBStore(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	trace := Trace{
-		Span: Span{
-			ID: SpanID{1, 2, ID(0)},
-			Annotations: Annotations{
-				Annotation{Key: "Name", Value: []byte("/")},
-				Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-				Annotation{Key: clientEventKey, Value: []byte("")},
-				Annotation{Key: serverEventKey, Value: []byte("")},
+	traces := []*Trace{
+		&Trace{
+			Span: Span{
+				ID: SpanID{1, 100, 0},
+				Annotations: Annotations{
+					Annotation{Key: "Name", Value: []byte("/")},
+					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+					Annotation{Key: clientEventKey, Value: []byte("")},
+					Annotation{Key: serverEventKey, Value: []byte("")},
+				},
+			},
+			Sub: []*Trace{
+				&Trace{
+					Span: Span{
+						ID: SpanID{Trace: 1, Span: 11, Parent: 100},
+						Annotations: Annotations{
+							Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
+							Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+							Annotation{Key: clientEventKey, Value: []byte("")},
+							Annotation{Key: serverEventKey, Value: []byte("")},
+						},
+					},
+					Sub: []*Trace{
+						&Trace{
+							Span: Span{
+								ID: SpanID{Trace: 1, Span: 111, Parent: 11},
+								Annotations: Annotations{
+									Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
+									Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+									Annotation{Key: clientEventKey, Value: []byte("")},
+									Annotation{Key: serverEventKey, Value: []byte("")},
+								},
+							},
+							Sub: []*Trace{
+								&Trace{
+									Span: Span{
+										ID: SpanID{Trace: 1, Span: 1111, Parent: 111},
+										Annotations: Annotations{
+											Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
+											Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+											Annotation{Key: clientEventKey, Value: []byte("")},
+											Annotation{Key: serverEventKey, Value: []byte("")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
-		Sub: []*Trace{
-			&Trace{
-				Span: Span{
-					ID: SpanID{Trace: 1, Span: 11, Parent: 1},
-					Annotations: Annotations{
-						Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
-						Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-						Annotation{Key: clientEventKey, Value: []byte("")},
-						Annotation{Key: serverEventKey, Value: []byte("")},
-					},
+		&Trace{
+			Span: Span{
+				ID: SpanID{2, 200, 0},
+				Annotations: Annotations{
+					Annotation{Key: "Name", Value: []byte("/")},
+					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+					Annotation{Key: clientEventKey, Value: []byte("")},
+					Annotation{Key: serverEventKey, Value: []byte("")},
 				},
 			},
 		},
 	}
 
-	// Collect root span.
-	if err := store.Collect(trace.Span.ID, trace.Span.Annotations...); err != nil {
-		t.Fatalf("unexpected error: %+v", err)
+	var (
+		collect    func(trace *Trace)
+		collectAll func(trace *Trace)
+		keys       []string      = []string{"time", "schemas"} // InfluxDB related annotations keys.
+		tracesMap  map[ID]*Trace = make(map[ID]*Trace, 0)      // Trace ID -> Trace.
+	)
+
+	collect = func(trace *Trace) {
+		if err := store.Collect(trace.Span.ID, trace.Span.Annotations...); err != nil {
+			t.Fatalf("unexpected error: %+v", err)
+		}
+	}
+	collectAll = func(trace *Trace) {
+		for _, sub := range trace.Sub {
+			collect(sub)
+			collectAll(sub)
+		}
+	}
+	for _, trace := range traces {
+		tracesMap[trace.ID.Trace] = trace
 	}
 
-	// Collect first child span.
-	if err := store.Collect(trace.Sub[0].Span.ID, trace.Sub[0].Span.Annotations...); err != nil {
-		t.Fatalf("unexpected error: %+v", err)
+	// InfluxDBStore.Collect(...) tests.
+	for _, trace := range traces {
+		collect(trace)
+		collectAll(trace)
 	}
 
-	// Find one trace.
-	savedTrace, err := store.Trace(trace.Span.ID.Trace)
+	mustEqual := func(gotTrace *Trace, t *testing.T) {
+		want, found := tracesMap[gotTrace.ID.Trace]
+		if !found {
+			t.Fatal("trace not found")
+		}
+		removeInfluxDBAnnotations(gotTrace, keys)
+		sortAnnotations(*gotTrace, *want)
+		if !reflect.DeepEqual(gotTrace, want) {
+			t.Fatalf("got: %v, want: %v", gotTrace, want)
+		}
+	}
+
+	// InfluxDBStore.Trace(...) tests.
+	for _, trace := range traces {
+		gotTrace, err := store.Trace(trace.ID.Trace)
+		if err != nil {
+			t.Fatalf("unexpected error: %+v", err)
+		}
+		if t == nil {
+			t.Fatalf("expected a trace, got nil")
+		}
+		mustEqual(gotTrace, t)
+	}
+
+	// InfluxDBStore.Traces(...) tests.
+	gotTraces, err := store.Traces()
 	if err != nil {
 		t.Fatalf("unexpected error: %+v", err)
 	}
-	if savedTrace == nil {
-		t.Fatalf("expected trace, got nil")
+	if len(gotTraces) != len(traces) {
+		t.Fatalf("unexpected quantity of traces, got: %v, want: %v", len(gotTraces), len(traces))
 	}
-	// Non-deterministic keys:
-	// - "time" added by InfluxDB.
-	// - "schemas" see: `schemasFieldName` within `InfluxDBStore.Collect(...)`.
-	keys := []string{"time", "schemas"}
-
-	// Using extendAnnotations in order to create a trace which includes those
-	// non-deterministic annotations with keys included in `fields` and values
-	// taken from `savedTrace`.
-	wantTrace := extendAnnotations(trace, *savedTrace, keys)
-
-	sortAnnotations(*savedTrace, wantTrace)
-	if !reflect.DeepEqual(*savedTrace, wantTrace) {
-		t.Fatalf("got: %v, want: %v", savedTrace, wantTrace)
-	}
-
-	// Find many traces.
-	traces, err := store.Traces()
-	if err != nil {
-		t.Fatalf("unexpected error: %+v", err)
-	}
-	if len(traces) != 1 {
-		t.Fatalf("unexpected quantity of traces, want: %v, got: %v", 1, len(traces))
-	}
-	sortAnnotations(*traces[0])
-	if !reflect.DeepEqual(*traces[0], wantTrace) {
-		t.Fatalf("got: %v, want: %v", traces[0], wantTrace)
+	for _, gotTrace := range gotTraces {
+		mustEqual(gotTrace, t)
 	}
 }
 
@@ -155,26 +271,30 @@ func newStore(t *testing.T) *InfluxDBStore {
 	return store
 }
 
-// extendAnnotations creates & returns a new Trace which is a copy of `dst`.
-// Trace returned has `annotations` copied from `src` but only those
-// with keys included on `keys`.
-func extendAnnotations(dst, src Trace, keys []string) Trace {
-	t := dst
-	for _, k := range keys {
-		t.Span.Annotations = append(t.Span.Annotations, Annotation{
-			Key:   k,
-			Value: src.Span.Annotations.get(k),
-		})
-	}
-	for i, sub := range t.Sub {
-		for _, k := range keys {
-			sub.Span.Annotations = append(sub.Span.Annotations, Annotation{
-				Key:   k,
-				Value: src.Sub[i].Span.Annotations.get(k),
-			})
+// removeInfluxDBAnnotations removes annotations from `root` and it's subtraces; only those annotations that have as key present on `keys` will be removed.
+func removeInfluxDBAnnotations(root *Trace, keys []string) {
+	var (
+		walk     func(root *Trace)
+		removeFn func(trace *Trace, keys []string)
+	)
+	removeFn = func(trace *Trace, keys []string) {
+		for i := len(trace.Annotations) - 1; i >= 0; i-- {
+			for _, k := range keys {
+				if trace.Annotations[i].Key == k {
+					trace.Annotations = append(trace.Annotations[:i], trace.Annotations[i+1:]...)
+					break
+				}
+			}
 		}
 	}
-	return t
+	walk = func(root *Trace) {
+		removeFn(root, keys)
+		for _, sub := range root.Sub {
+			removeFn(sub, keys)
+			walk(sub)
+		}
+	}
+	walk(root)
 }
 
 // sortSchemas sorts schemas(strings) within `s` which is
@@ -186,11 +306,16 @@ func sortSchemas(s string) string {
 }
 
 func sortAnnotations(traces ...Trace) {
-	for _, t := range traces {
+	var walk func(t *Trace)
+	walk = func(t *Trace) {
 		sort.Sort(annotations(t.Span.Annotations))
 		for _, s := range t.Sub {
 			sort.Sort(annotations(s.Span.Annotations))
+			walk(s)
 		}
+	}
+	for _, t := range traces {
+		walk(&t)
 	}
 }
 
