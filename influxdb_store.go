@@ -135,8 +135,12 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 		return nil, errors.New("trace not found")
 	}
 
+	var (
+		rootSpanSet bool
+		children    []*Trace
+	)
+
 	// Iterate over series(spans) to set `trace` fields.
-	var rootSpanSet bool
 	for _, s := range result.Series {
 		var isRootSpan bool
 		span, err := newSpanFromRow(&s)
@@ -158,8 +162,11 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 			trace.Span = *span
 			rootSpanSet = true
 		} else { // children span.
-			trace.Sub = append(trace.Sub, &Trace{Span: *span})
+			children = append(children, &Trace{Span: *span})
 		}
+	}
+	if err := addChildren(trace, children); err != nil {
+		return nil, err
 	}
 	return trace, nil
 }
@@ -222,6 +229,7 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		return nil, err
 	}
 
+	children := make(map[ID][]*Trace, 0)
 	// Iterate over series(children spans) to set sub-traces to it's corresponding root trace.
 	for _, s := range childrenSpansResult.Series {
 		span, err := newSpanFromRow(&s)
@@ -236,11 +244,23 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		trace, present := tracesCache[span.ID.Trace]
 		if !present { // Root trace not added.
 			return nil, errors.New("parent not found")
-		} else { // Root trace already added so append a sub-trace.
-			trace.Sub = append(trace.Sub, &Trace{Span: *span})
+		} else { // Root trace already added, append `child` to `children` for later usage.
+			child := &Trace{Span: *span}
+			t, found := children[trace.ID.Trace]
+			if !found {
+				children[trace.ID.Trace] = []*Trace{child}
+			} else {
+				children[trace.ID.Trace] = append(t, child)
+			}
 		}
 	}
 	for _, trace := range tracesCache {
+		traceChildren, present := children[trace.ID.Trace]
+		if present {
+			if err := addChildren(trace, traceChildren); err != nil {
+				return nil, err
+			}
+		}
 		traces = append(traces, trace)
 	}
 	return traces, nil
@@ -514,6 +534,26 @@ func findSchemasAnnotation(anns []Annotation) *Annotation {
 	return nil
 }
 
+// findTraceParent walks through `rootTrace` to look for `child`; once found — it's trace parent is returned.
+func findTraceParent(root, child *Trace) *Trace {
+	var walkToParent func(root, child *Trace) *Trace
+	walkToParent = func(root, child *Trace) *Trace {
+		if root.ID.Span == child.ID.Parent {
+			return root
+		}
+		for _, sub := range root.Sub {
+			if sub.ID.Span == child.ID.Parent {
+				return sub
+			}
+			if r := walkToParent(sub, child); r != nil {
+				return r
+			}
+		}
+		return nil
+	}
+	return walkToParent(root, child)
+}
+
 // mergeSchemasField merges new and old which are a set of schemas(strings) separated by `schemasFieldSeparator`.
 // Returns the result of merging new & old without duplications.
 func mergeSchemasField(new, old interface{}) (string, error) {
@@ -572,6 +612,45 @@ func schemasFromAnnotations(anns []Annotation) string {
 		}
 	}
 	return strings.Join(schemas, schemasFieldSeparator)
+}
+
+// addChildren adds `children` to `root`; each child is appended to it's trace parent.
+func addChildren(root *Trace, children []*Trace) error {
+	var (
+		addFn         func() // Handles children appending to it's trace parent.
+		errMaxRetries error  = errors.New("maximum number of retries")
+		retries       int    = len(children) // Maximum number of retries to add `children` elements to `root`.
+		try           int                    // Current number of try to add `children` elements to `root`.
+	)
+	addFn = func() {
+		for i := len(children) - 1; i >= 0; i-- {
+			child := children[i]
+			t := findTraceParent(root, child)
+			if t != nil { // Trace found.
+				if t.Sub == nil { // Empty sub-traces slice.
+					t.Sub = []*Trace{child}
+				} else { // Non-empty sub-traces slice.
+					t.Sub = append(t.Sub, child)
+				}
+
+				// Removes current child since was added to it's parent.
+				children = append(children[:i], children[i+1:]...)
+			}
+		}
+	}
+
+	// Loops until all `children` elements were added to it's trace parent or when maximum number of retries reached.
+	for {
+		if len(children) == 0 {
+			break
+		}
+		if try == retries {
+			return errMaxRetries
+		}
+		addFn()
+		try++
+	}
+	return nil
 }
 
 // withoutEmptyFields filters `pf` and returns `pointFields` excluding those that have empty values.
