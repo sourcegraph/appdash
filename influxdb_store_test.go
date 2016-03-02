@@ -186,21 +186,21 @@ func TestInfluxDBStore(t *testing.T) {
 	}
 
 	var (
-		collect    func(trace *Trace)
-		collectAll func(trace *Trace)
-		keys       []string      = []string{"time", "schemas"} // InfluxDB related annotations keys.
-		tracesMap  map[ID]*Trace = make(map[ID]*Trace, 0)      // Trace ID -> Trace.
+		keys           []string = []string{"time", "schemas"} // InfluxDB related annotations keys.
+		mustCollect    func(trace *Trace)
+		mustCollectAll func(trace *Trace)
+		tracesMap      map[ID]*Trace = make(map[ID]*Trace, 0) // Trace ID -> Trace.
 	)
 
-	collect = func(trace *Trace) {
+	mustCollect = func(trace *Trace) {
 		if err := store.Collect(trace.Span.ID, trace.Span.Annotations...); err != nil {
 			t.Fatalf("unexpected error: %+v", err)
 		}
 	}
-	collectAll = func(trace *Trace) {
+	mustCollectAll = func(trace *Trace) {
 		for _, sub := range trace.Sub {
-			collect(sub)
-			collectAll(sub)
+			mustCollect(sub)
+			mustCollectAll(sub)
 		}
 	}
 	for _, trace := range traces {
@@ -209,15 +209,11 @@ func TestInfluxDBStore(t *testing.T) {
 
 	// InfluxDBStore.Collect(...) tests.
 	for _, trace := range traces {
-		collect(trace)
-		collectAll(trace)
+		mustCollect(trace)
+		mustCollectAll(trace)
 	}
 
-	mustEqual := func(gotTrace *Trace, t *testing.T) {
-		want, found := tracesMap[gotTrace.ID.Trace]
-		if !found {
-			t.Fatal("trace not found")
-		}
+	mustBeEqual := func(gotTrace, want *Trace) {
 		removeInfluxDBAnnotations(gotTrace, keys)
 		sortAnnotations(*gotTrace, *want)
 		if !reflect.DeepEqual(gotTrace, want) {
@@ -234,7 +230,11 @@ func TestInfluxDBStore(t *testing.T) {
 		if t == nil {
 			t.Fatalf("expected a trace, got nil")
 		}
-		mustEqual(gotTrace, t)
+		want, found := tracesMap[gotTrace.ID.Trace]
+		if !found {
+			t.Fatal("trace not found")
+		}
+		mustBeEqual(gotTrace, want)
 	}
 
 	// InfluxDBStore.Traces(...) tests.
@@ -246,7 +246,11 @@ func TestInfluxDBStore(t *testing.T) {
 		t.Fatalf("unexpected quantity of traces, got: %v, want: %v", len(gotTraces), len(traces))
 	}
 	for _, gotTrace := range gotTraces {
-		mustEqual(gotTrace, t)
+		want, found := tracesMap[gotTrace.ID.Trace]
+		if !found {
+			t.Fatal("trace not found")
+		}
+		mustBeEqual(gotTrace, want)
 	}
 }
 
