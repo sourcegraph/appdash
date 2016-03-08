@@ -246,8 +246,8 @@ func TestChunkedCollectorFlushTimeout(t *testing.T) {
 	}
 
 	err := cc.Flush()
-	if err != ErrFlushTimeout {
-		t.Fatal("got", err, "expected", ErrFlushTimeout)
+	if err != ErrQueueDropped {
+		t.Fatal("got", err, "expected", ErrQueueDropped)
 	}
 	if len(cc.pendingBySpanID) != 0 {
 		t.Fatal("got", len(cc.pendingBySpanID), "queued but expected 0")
