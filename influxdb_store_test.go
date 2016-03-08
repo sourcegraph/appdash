@@ -311,6 +311,48 @@ func BenchmarkInfluxDBStoreCollect1000(b *testing.B) {
 	benchmarkInfluxDBStoreCollect(b, 1000)
 }
 
+func BenchmarkInfluxDBStoreCollectParallel(b *testing.B) {
+	b.StopTimer()
+	store, err := newTestInfluxDBStore()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			b.Fatal(err)
+		}
+	}()
+	b.StartTimer()
+	var x ID
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			x++
+			spanID := SpanID{x, x + 1, 0}
+			anns := []Annotations{
+				Annotations{
+					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
+					Annotation{Key: serverEventKey, Value: []byte("")},
+				},
+				Annotations{
+					Annotation{Key: "Name", Value: []byte("/")},
+				},
+				Annotations{
+					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
+					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
+					Annotation{Key: clientEventKey, Value: []byte("")},
+				},
+			}
+			for ann := 0; ann < len(anns); ann++ {
+				if err := store.Collect(spanID, anns[ann]...); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	})
+	b.StopTimer()
+}
+
 func benchmarkInfluxDBStoreTrace(b *testing.B, n int) {
 	b.StopTimer()
 	store, err := newTestInfluxDBStore()
