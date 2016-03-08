@@ -19,7 +19,7 @@ import (
 // Effectively, the client may request the server to allocate a buffer of up to
 // maxMessageSize -- so choose carefully.
 //
-// We use 1MB here.
+// We use 1 MB here.
 const maxMessageSize = 1 * 1024 * 1024
 
 // A Collector collects events that occur in spans.
@@ -99,7 +99,7 @@ type ChunkedCollector struct {
 	// lost). In the event that the queue is dropped, Collect will return
 	// ErrQueueDropped.
 	//
-	// Default MaxQueueSize = 32 * 1024 * 1024 (32MB).
+	// Default MaxQueueSize = 32 * 1024 * 1024 (32 MB).
 	MaxQueueSize uint64
 
 	// Log, if non-nil, is used to log warnings like when the queue is entirely
@@ -135,7 +135,7 @@ type ChunkedCollector struct {
 // 		Collector:    c,
 // 		MinInterval:  500 * time.Millisecond,
 // 		FlushTimeout: 50 * time.Millisecond,
-// 		MaxQueueSize: 32 * 1024 * 1024, // 32MB
+// 		MaxQueueSize: 32 * 1024 * 1024, // 32 MB
 // 		Log:          log.New(os.Stderr, "appdash: ", log.LstdFlags),
 // 	}
 //
@@ -144,7 +144,7 @@ func NewChunkedCollector(c Collector) *ChunkedCollector {
 		Collector:    c,
 		MinInterval:  500 * time.Millisecond,
 		FlushTimeout: 50 * time.Millisecond,
-		MaxQueueSize: 32 * 1024 * 1024, // 32MB
+		MaxQueueSize: 32 * 1024 * 1024, // 32 MB
 		Log:          log.New(os.Stderr, "appdash: ", log.LstdFlags),
 	}
 }
