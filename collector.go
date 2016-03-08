@@ -19,7 +19,7 @@ import (
 // Effectively, the client may request the server to allocate a buffer of up to
 // maxMessageSize -- so choose carefully.
 //
-// We use 1MB here.
+// We use 1 MB here.
 const maxMessageSize = 1 * 1024 * 1024
 
 // A Collector collects events that occur in spans.
@@ -42,19 +42,74 @@ func newCollectPacket(s SpanID, as Annotations) *wire.CollectPacket {
 	}
 }
 
-// A ChunkedCollector groups annotations together that have the same
-// span and calls its underlying collector's Collect method with the
-// chunked data periodically (instead of immediately).
+// ErrQueueDropped is the error returns by ChunkedCollector.Flush and
+// ChunkedCollector.Collect when the internal queue has grown too large and has
+// been subsequently dropped.
+var ErrQueueDropped = errors.New("ChunkedCollector queue entirely dropped (trace data will be missing)")
+
+// ChunkedCollector groups annotations together that have the same span and
+// calls its underlying collector's Collect method with the chunked data
+// periodically, instead of immediately. This is more efficient, especially in
+// the case of the underlying Collector being an RemoteCollector, because whole
+// spans are collected at once (rather than in parts). It also prevents the
+// caller, usually a Recorder, from blocking time-sensitive operations on
+// collection (which, in the case of RemoteCollector, may involve connecting to
+// a remote server).
+//
+// Inherently, ChunkedCollector queues all collections prior to them being
+// flushed out to the underlying Collector. Because of this it's important to
+// understand the various boundaries that are imposed to avoid any sort of queue
+// backlogging or perceived memory leaks.
+//
+// The flow of a ChunkedCollector is that:
+//
+//  - It receives a collection.
+//    - If the queue size exceeds MaxQueueSize in bytes, the pending queue is
+//      entirely dropped and ErrQueueDropped is returned.
+//    - Otherwise, if the queue would not exceed that size, the collection is
+//      added to the queue.
+//  - After MinInterval (or if Flush is called manually), all queued collections
+//    are passed off to the underlying collector. If the overall Flush time
+//    measured after each underlying Collect call exceeds FlushTimeout, the
+//    pending queue is entirely dropped and ErrQueueDropped is returned.
+//  - If the queue has been entirely dropped as a result of one of the above
+//    cases, entire traces and/or parts of their data will be missing. For this
+//    reason, you may specify a Log for debugging purposes.
+//
 type ChunkedCollector struct {
 	// Collector is the underlying collector that spans are sent to.
 	Collector
 
-	// MinInterval is the minimum time period between calls to the
-	// underlying collector's Collect method.
+	// MinInterval specifies the minimum interval at which to call Flush
+	// automatically (in a separate goroutine, as to not to block the caller who
+	// may be recording time-sensitive operations).
+	//
+	// Default MinInterval = 500 * time.Millisecond (500ms).
 	MinInterval time.Duration
 
+	// FlushTimeout, if non-zero, specifies the time after which a flush operation
+	// is considered timed out. If timeout occurs, the pending queue is entirely
+	// dropped (trace data lost) and ErrQueueDropped is returned by Flush.
+	//
+	// Default FlushTimeout = 50 * time.Millisecond (50ms).
+	FlushTimeout time.Duration
+
+	// MaxQueueSize, if non-zero, is the maximum size in bytes that the pending
+	// queue of collections may grow to before being entirely dropped (trace data
+	// lost). In the event that the queue is dropped, Collect will return
+	// ErrQueueDropped.
+	//
+	// Default MaxQueueSize = 32 * 1024 * 1024 (32 MB).
+	MaxQueueSize uint64
+
+	// Log, if non-nil, is used to log warnings like when the queue is entirely
+	// dropped (and hence trace data was lost).
+	Log *log.Logger
+
 	// OnFlush, if non-nil, will be directly invoked at the start of each Flush
-	// operation that is performed by this collector.
+	// operation that is performed by this collector. queueSize is the number of
+	// entries in the queue (i.e. number of underlying collections that will
+	// occur).
 	//
 	// It is primarily used for debugging purposes.
 	OnFlush func(queueSize int)
@@ -67,10 +122,31 @@ type ChunkedCollector struct {
 	started, stopped bool
 	stopChan         chan struct{}
 
+	queueSizeBytes  uint64
 	pendingBySpanID map[SpanID]Annotations
 
 	// mu protects pendingBySpanID, lastErr, started, stopped, and stopChan.
 	mu sync.Mutex
+}
+
+// NewChunkedCollector is shorthand for:
+//
+// 	c := &ChunkedCollector{
+// 		Collector:    c,
+// 		MinInterval:  500 * time.Millisecond,
+// 		FlushTimeout: 50 * time.Millisecond,
+// 		MaxQueueSize: 32 * 1024 * 1024, // 32 MB
+// 		Log:          log.New(os.Stderr, "appdash: ", log.LstdFlags),
+// 	}
+//
+func NewChunkedCollector(c Collector) *ChunkedCollector {
+	return &ChunkedCollector{
+		Collector:    c,
+		MinInterval:  500 * time.Millisecond,
+		FlushTimeout: 50 * time.Millisecond,
+		MaxQueueSize: 32 * 1024 * 1024, // 32 MB
+		Log:          log.New(os.Stderr, "appdash: ", log.LstdFlags),
+	}
 }
 
 // Collect adds the span and annotations to a local buffer until the
@@ -87,10 +163,30 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 		cc.start()
 	}
 
+	// Increase queue size by approximately the size of the entry. This doesn't
+	// account for map entry or slice header overhead, but close enough for our
+	// purposes here.
+	var collectionSize uint64 = 3 * 8 // SpanID is 3 * uint64 ID's.
+	for _, ann := range anns {
+		collectionSize += uint64(len(ann.Key))
+		collectionSize += uint64(len(ann.Value))
+	}
+
+	// If the queue would become too large, drop it.
+	if cc.MaxQueueSize != 0 && cc.queueSizeBytes+collectionSize > cc.MaxQueueSize {
+		if cc.Log != nil {
+			cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
+			cc.Log.Println("ChunkedCollector: queueSize:%v queueSizeBytes:%v + collectionSize:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes, collectionSize)
+		}
+		cc.pendingBySpanID = nil
+		cc.queueSizeBytes = 0
+		return ErrQueueDropped
+	}
+	cc.queueSizeBytes += collectionSize
+
 	if cc.pendingBySpanID == nil {
 		cc.pendingBySpanID = make(map[SpanID]Annotations)
 	}
-
 	if p, present := cc.pendingBySpanID[span]; present {
 		if len(anns) > 0 {
 			cc.pendingBySpanID[span] = append(p, anns...)
@@ -109,9 +205,12 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 // Flush immediately sends all pending spans to the underlying
 // collector.
 func (cc *ChunkedCollector) Flush() error {
+	start := time.Now()
+
 	cc.mu.Lock()
 	pendingBySpanID := cc.pendingBySpanID
 	cc.pendingBySpanID = nil
+	cc.queueSizeBytes = 0
 	cc.mu.Unlock()
 
 	if cc.OnFlush != nil {
@@ -122,6 +221,16 @@ func (cc *ChunkedCollector) Flush() error {
 	for spanID, p := range pendingBySpanID {
 		if err := cc.Collector.Collect(spanID, p...); err != nil {
 			errs = append(errs, err)
+		}
+		if cc.FlushTimeout != 0 && time.Since(start) > cc.FlushTimeout {
+			cc.mu.Lock()
+			if cc.Log != nil {
+				cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
+				cc.Log.Println("ChunkedCollector: queueSize:%v queueSizeBytes:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes)
+			}
+			cc.mu.Unlock()
+			errs = append(errs, ErrQueueDropped)
+			break
 		}
 	}
 
