@@ -171,8 +171,13 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 		collectionSize += uint64(len(ann.Key))
 		collectionSize += uint64(len(ann.Value))
 	}
+
+	// If the queue would become too large, drop it.
 	if cc.MaxQueueSize != 0 && cc.queueSizeBytes+collectionSize > cc.MaxQueueSize {
-		// Queue is too large, drop it.
+		if cc.Log != nil {
+			cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
+			cc.Log.Println("ChunkedCollector: queueSize:%v queueSizeBytes:%v + collectionSize:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes, collectionSize)
+		}
 		cc.pendingBySpanID = nil
 		cc.queueSizeBytes = 0
 		return ErrQueueDropped
@@ -218,6 +223,12 @@ func (cc *ChunkedCollector) Flush() error {
 			errs = append(errs, err)
 		}
 		if cc.FlushTimeout != 0 && time.Since(start) > cc.FlushTimeout {
+			cc.mu.Lock()
+			if cc.Log != nil {
+				cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
+				cc.Log.Println("ChunkedCollector: queueSize:%v queueSizeBytes:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes)
+			}
+			cc.mu.Unlock()
 			errs = append(errs, ErrQueueDropped)
 			break
 		}
