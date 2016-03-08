@@ -129,7 +129,7 @@ type ChunkedCollector struct {
 	mu sync.Mutex
 }
 
-// NewChunkedCollector is short-handed for:
+// NewChunkedCollector is shorthand for:
 //
 // 	c := &ChunkedCollector{
 // 		Collector:    c,
