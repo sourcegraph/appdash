@@ -94,9 +94,10 @@ type ChunkedCollector struct {
 	// Default FlushTimeout = 50 * time.Millisecond (50ms).
 	FlushTimeout time.Duration
 
-	// MaxQueueSize is the maximum size in bytes that the pending queue of
-	// collections may grow to before being entirely dropped (trace data lost).
-	// In the event that the queue is dropped, Collect will return ErrQueueDropped.
+	// MaxQueueSize, if non-zero, is the maximum size in bytes that the pending
+	// queue of collections may grow to before being entirely dropped (trace data
+	// lost). In the event that the queue is dropped, Collect will return
+	// ErrQueueDropped.
 	//
 	// Default MaxQueueSize = 32 * 1024 * 1024 (32MB).
 	MaxQueueSize uint64
@@ -170,7 +171,7 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 		collectionSize += uint64(len(ann.Key))
 		collectionSize += uint64(len(ann.Value))
 	}
-	if cc.queueSizeBytes+collectionSize > cc.MaxQueueSize {
+	if cc.MaxQueueSize != 0 && cc.queueSizeBytes+collectionSize > cc.MaxQueueSize {
 		// Queue is too large, drop it.
 		cc.pendingBySpanID = nil
 		cc.queueSizeBytes = 0
