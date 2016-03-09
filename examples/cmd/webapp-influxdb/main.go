@@ -35,9 +35,8 @@ func main() {
 	conf.Retention.Enabled = true
 	conf.Retention.CheckInterval = toml.Duration(30 * time.Minute)
 
-	// Disables sending anonymous data to m.influxdb.com
-	// See: https://docs.influxdata.com/influxdb/v0.10/administration/config/#reporting-disabled-false
-	conf.ReportingDisabled = true
+	// If you do not want metrics to be reported (see: https://docs.influxdata.com/influxdb/v0.10/administration/config/#reporting-disabled-false) uncomment the following line:
+	//conf.ReportingDisabled = true
 
 	// InfluxDB server auth credentials. If user does not exist yet it will
 	// be created as admin user.
