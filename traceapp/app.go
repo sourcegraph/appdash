@@ -16,8 +16,10 @@ import (
 	"errors"
 	htmpl "html/template"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -39,6 +41,8 @@ type App struct {
 
 	tmplLock sync.Mutex
 	tmpls    map[string]*htmpl.Template
+
+	Log *log.Logger
 }
 
 // New creates a new application handler. If r is nil, a new router is
@@ -48,7 +52,7 @@ func New(r *Router) *App {
 		r = NewRouter(nil)
 	}
 
-	app := &App{Router: r}
+	app := &App{Router: r, Log: log.New(os.Stderr, "appdash: ", log.LstdFlags)}
 
 	r.r.Get(RootRoute).Handler(handlerFunc(app.serveRoot))
 	r.r.Get(TraceRoute).Handler(handlerFunc(app.serveTrace))
