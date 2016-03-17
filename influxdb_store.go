@@ -147,11 +147,6 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromRow(&s)
-		if err != nil {
-			return trace, nil
-		}
-		span.Annotations = filterSchemas(*annotations)
 		if span.ID.IsRoot() && rootSpanSet {
 			return nil, errors.New("unexpected multiple root spans")
 		}
@@ -196,11 +191,6 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromRow(&s)
-		if err != nil {
-			return nil, err
-		}
-		span.Annotations = *annotations
 		_, present := tracesCache[span.ID.Trace]
 		if !present {
 			tracesCache[span.ID.Trace] = &Trace{Span: *span}
@@ -236,11 +226,6 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 		if err != nil {
 			return nil, err
 		}
-		annotations, err := annotationsFromRow(&s)
-		if err != nil {
-			return nil, err
-		}
-		span.Annotations = filterSchemas(*annotations)
 		trace, present := tracesCache[span.ID.Trace]
 		if !present { // Root trace not added.
 			return nil, errors.New("parent not found")
@@ -432,6 +417,24 @@ func (in *InfluxDBStore) setUpTestMode() error {
 		return err
 	}
 	return nil
+}
+
+func annotationsFromEvents(a Annotations) (Annotations, error) {
+	var (
+		annotations Annotations
+		events      []Event
+	)
+	if err := UnmarshalEvents(a, &events); err != nil {
+		return nil, err
+	}
+	for _, e := range events {
+		anns, err := MarshalEvent(e)
+		if err != nil {
+			return nil, err
+		}
+		annotations = append(annotations, anns...)
+	}
+	return annotations, nil
 }
 
 func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
@@ -691,6 +694,15 @@ func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
 		Span:   ID(spanID),
 		Parent: ID(parentID),
 	}
+	annotations, err := annotationsFromRow(r)
+	if err != nil {
+		return nil, err
+	}
+	anns, err := annotationsFromEvents(filterSchemas(*annotations))
+	if err != nil {
+		return nil, err
+	}
+	span.Annotations = anns
 	return span, nil
 }
 
