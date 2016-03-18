@@ -10,11 +10,7 @@ import (
 )
 
 const (
-	clientEventKey    string = schemaPrefix + clientEventSchema
-	clientEventSchema string = "HTTPClient"
-	serverEventKey    string = schemaPrefix + serverEventSchema
-	serverEventSchema string = "HTTPServer"
-	spanNameSchema    string = "name"
+	eventSpanNameAnnotationKey string = schemaPrefix + "name"
 )
 
 func TestMergeSchemasField(t *testing.T) {
@@ -127,9 +123,7 @@ func TestInfluxDBStore(t *testing.T) {
 				ID: SpanID{1, 100, 0},
 				Annotations: Annotations{
 					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-					Annotation{Key: clientEventKey, Value: []byte("")},
-					Annotation{Key: serverEventKey, Value: []byte("")},
+					Annotation{Key: eventSpanNameAnnotationKey},
 				},
 			},
 			Sub: []*Trace{
@@ -138,9 +132,7 @@ func TestInfluxDBStore(t *testing.T) {
 						ID: SpanID{Trace: 1, Span: 11, Parent: 100},
 						Annotations: Annotations{
 							Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
-							Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-							Annotation{Key: clientEventKey, Value: []byte("")},
-							Annotation{Key: serverEventKey, Value: []byte("")},
+							Annotation{Key: eventSpanNameAnnotationKey},
 						},
 					},
 					Sub: []*Trace{
@@ -149,9 +141,7 @@ func TestInfluxDBStore(t *testing.T) {
 								ID: SpanID{Trace: 1, Span: 111, Parent: 11},
 								Annotations: Annotations{
 									Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
-									Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-									Annotation{Key: clientEventKey, Value: []byte("")},
-									Annotation{Key: serverEventKey, Value: []byte("")},
+									Annotation{Key: eventSpanNameAnnotationKey},
 								},
 							},
 							Sub: []*Trace{
@@ -160,9 +150,7 @@ func TestInfluxDBStore(t *testing.T) {
 										ID: SpanID{Trace: 1, Span: 1111, Parent: 111},
 										Annotations: Annotations{
 											Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
-											Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-											Annotation{Key: clientEventKey, Value: []byte("")},
-											Annotation{Key: serverEventKey, Value: []byte("")},
+											Annotation{Key: eventSpanNameAnnotationKey},
 										},
 									},
 								},
@@ -177,9 +165,7 @@ func TestInfluxDBStore(t *testing.T) {
 				ID: SpanID{2, 200, 0},
 				Annotations: Annotations{
 					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-					Annotation{Key: clientEventKey, Value: []byte("")},
-					Annotation{Key: serverEventKey, Value: []byte("")},
+					Annotation{Key: eventSpanNameAnnotationKey},
 				},
 			},
 		},
