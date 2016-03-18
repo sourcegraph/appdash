@@ -87,10 +87,8 @@ func TestUnmarshalEvents(t *testing.T) {
 	defer func() {
 		registeredEvents = origRegisteredEvents
 	}()
+	registeredEvents = make(map[string]Event)
 
-	for k := range registeredEvents {
-		delete(registeredEvents, k)
-	}
 	RegisterEvent(dummyEvent{})
 	RegisterEvent(dummyEvent2{})
 
