@@ -620,10 +620,9 @@ func schemasFromAnnotations(anns []Annotation) string {
 // addChildren adds `children` to `root`; each child is appended to it's trace parent.
 func addChildren(root *Trace, children []*Trace) error {
 	var (
-		addFn         func() // Handles children appending to it's trace parent.
-		errMaxRetries error  = errors.New("maximum number of retries")
-		retries       int    = len(children) // Maximum number of retries to add `children` elements to `root`.
-		try           int                    // Current number of try to add `children` elements to `root`.
+		addFn   func()                 // Handles children appending to it's trace parent.
+		retries int    = len(children) // Maximum number of retries to add `children` elements to `root`.
+		try     int                    // Current number of try to add `children` elements to `root`.
 	)
 	addFn = func() {
 		for i := len(children) - 1; i >= 0; i-- {
@@ -647,8 +646,15 @@ func addChildren(root *Trace, children []*Trace) error {
 		if len(children) == 0 {
 			break
 		}
-		if try == retries {
-			return errMaxRetries
+		if try == retries { // At this point all children were added to their parent.
+
+			// Iterates over children(without parent found on `root`) and appends them as sub-traces to `root`.
+			for _, child := range children {
+				if child.ID.Trace == root.ID.Trace {
+					root.Sub = append(root.Sub, child)
+				}
+			}
+			return nil
 		}
 		addFn()
 		try++
