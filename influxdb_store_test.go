@@ -10,6 +10,10 @@ import (
 )
 
 const (
+	clientEventKey             string = schemaPrefix + clientEventSchema
+	clientEventSchema          string = "HTTPClient"
+	serverEventKey             string = schemaPrefix + serverEventSchema
+	serverEventSchema          string = "HTTPServer"
 	eventSpanNameAnnotationKey string = schemaPrefix + "name"
 )
 
