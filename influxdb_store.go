@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,12 +16,14 @@ import (
 )
 
 const (
+	clientEventPrefix     string = "Client"       // `httptrace.ClientEvent` trace tag prefix.
 	defaultTracesPerPage  int    = 10             // Default number of traces per page.
 	releaseDBName         string = "appdash"      // InfluxDB release DB name.
 	schemasFieldName      string = "schemas"      // Span's measurement field name for schemas field.
 	schemasFieldSeparator string = ","            // Span's measurement character separator for schemas field.
 	spanMeasurementName   string = "spans"        // InfluxDB container name for trace spans.
 	testDBName            string = "appdash_test" // InfluxDB test DB name (will be deleted entirely in test mode).
+	timeFieldName         string = "time"         // Span's measurement field name for time field.
 )
 
 type mode int
@@ -159,9 +162,14 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 			isRootSpan = true
 		}
 		if isRootSpan { // root span.
+			span.Annotations = withoutClientEventAnnotations(span.Annotations)
+			span.Annotations = withouthInfluxDBAnnotations(span.Annotations)
+			sort.Sort(byAnnotationKey(span.Annotations))
 			trace.Span = *span
 			rootSpanSet = true
 		} else { // children span.
+			span.Annotations = withouthInfluxDBAnnotations(span.Annotations)
+			sort.Sort(byAnnotationKey(span.Annotations))
 			children = append(children, &Trace{Span: *span})
 		}
 	}
@@ -201,6 +209,9 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 			return nil, err
 		}
 		span.Annotations = *annotations
+		span.Annotations = withoutClientEventAnnotations(span.Annotations)
+		span.Annotations = withouthInfluxDBAnnotations(span.Annotations)
+		sort.Sort(byAnnotationKey(span.Annotations))
 		_, present := tracesCache[span.ID.Trace]
 		if !present {
 			tracesCache[span.ID.Trace] = &Trace{Span: *span}
@@ -241,6 +252,8 @@ func (in *InfluxDBStore) Traces() ([]*Trace, error) {
 			return nil, err
 		}
 		span.Annotations = filterSchemas(*annotations)
+		span.Annotations = withouthInfluxDBAnnotations(span.Annotations)
+		sort.Sort(byAnnotationKey(span.Annotations))
 		trace, present := tracesCache[span.ID.Trace]
 		if !present { // Root trace not added.
 			return nil, errors.New("parent not found")
@@ -433,6 +446,12 @@ func (in *InfluxDBStore) setUpTestMode() error {
 	}
 	return nil
 }
+
+type byAnnotationKey Annotations
+
+func (a byAnnotationKey) Len() int           { return len(a) }
+func (a byAnnotationKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
+func (a byAnnotationKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func annotationsFromRow(r *influxDBModels.Row) (*Annotations, error) {
 	// Actually an influxDBModels.Row represents a single InfluxDB serie.
@@ -670,6 +689,30 @@ func withoutEmptyFields(pf pointFields) pointFields {
 		}
 	}
 	return r
+}
+
+// withoutClientEventAnnotations returns `Annotations` taken from `anns` without `httptrace.ClientEvent` related annotations.
+func withoutClientEventAnnotations(anns []Annotation) Annotations {
+	var annotations Annotations
+	for _, a := range anns {
+		if strings.HasPrefix(a.Key, clientEventPrefix) {
+			continue
+		}
+		annotations = append(annotations, a)
+	}
+	return annotations
+}
+
+// withouthInfluxDBAnnotations returns `Annotations` taken from `anns` without fields saved & used by InfluxDB and `schemasFieldName`.
+func withouthInfluxDBAnnotations(anns []Annotation) Annotations {
+	var annotations Annotations
+	for _, a := range anns {
+		if strings.HasPrefix(a.Key, schemasFieldName) || strings.HasPrefix(a.Key, timeFieldName) {
+			continue
+		}
+		annotations = append(annotations, a)
+	}
+	return annotations
 }
 
 func newSpanFromRow(r *influxDBModels.Row) (*Span, error) {
