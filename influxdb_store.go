@@ -646,7 +646,14 @@ func addChildren(root *Trace, children []*Trace) error {
 		if len(children) == 0 {
 			break
 		}
-		if try == retries { // At this point all children were added to their parent.
+
+		// At this point, all children were added to their parent spans. Any children
+		// left over in the children slice do not have parents. This could happen if,
+		// for example, a parent service fails to record its span information to the
+		// collection server but its downstream services do send their span information
+		// properly. In this case, we gracefully degrade by adding these orphan spans to
+		// the root span.
+		if try == retries {
 
 			// Iterates over children(without parent found on `root`) and appends them as sub-traces to `root`.
 			for _, child := range children {
