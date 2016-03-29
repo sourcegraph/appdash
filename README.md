@@ -90,6 +90,11 @@ There are 4 main components/concepts in appdash:
 
 Appdash has clients available for Go, Python (see `python/` subdir) and Ruby (see https://github.com/bsm/appdash-rb).
 
+## OpenTracing Support
+
+Appdash supports the [OpenTracing](http://opentracing.io) API. Please see the
+`opentracing` subdir for the Go implementation, or see [the GoDoc](https://godoc.org/sourcegraph.com/sourcegraph/appdash/opentracing)
+for API documentation.
 
 ## Acknowledgments
 
