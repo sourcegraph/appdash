@@ -153,7 +153,7 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
-	traces, err := a.Queryer.Traces()
+	traces, err := a.Queryer.Traces(appdash.TracesOpts{})
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 
 func (a *App) serveAggregate(w http.ResponseWriter, r *http.Request) error {
 	// By default we display all traces.
-	traces, err := a.Queryer.Traces()
+	traces, err := a.Queryer.Traces(appdash.TracesOpts{})
 	if err != nil {
 		return err
 	}

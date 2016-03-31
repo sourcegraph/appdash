@@ -26,12 +26,16 @@ var (
 	ErrTraceNotFound = errors.New("trace not found")
 )
 
+// TraceOpts bundles the options used for list of traces.
+type TracesOpts struct {
+	// Timespan specifies a time range values and can be used as input for filtering traces.
+	Timespan Timespan
+}
+
 // A Queryer indexes spans and makes them queryable.
 type Queryer interface {
-	// Traces returns an implementation-defined list of traces. It is
-	// a placeholder method that will be removed when other, more
-	// useful methods are added to Queryer.
-	Traces() ([]*Trace, error)
+	// Traces returns an implementation-defined list of traces according to the options.
+	Traces(opts TracesOpts) ([]*Trace, error)
 }
 
 // NewMemoryStore creates a new in-memory store
@@ -215,7 +219,7 @@ func (ms *MemoryStore) traceNoLock(id ID) (*Trace, error) {
 }
 
 // Traces implements the Queryer interface.
-func (ms *MemoryStore) Traces() ([]*Trace, error) {
+func (ms *MemoryStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	ms.Lock()
 	defer ms.Unlock()
 

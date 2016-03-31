@@ -38,7 +38,7 @@ func TestAggregateStore(t *testing.T) {
 	}
 
 	// Verify the recorded traces.
-	traces, err := ms.Traces()
+	traces, err := ms.Traces(TracesOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestAggregateStoreNSlowest(t *testing.T) {
 		}
 
 		// Query the traces from the memory store.
-		traces, err := ms.Traces()
+		traces, err := ms.Traces(TracesOpts{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -224,7 +224,7 @@ func TestAggregateStoreMinEvictAge(t *testing.T) {
 	}
 
 	// Verify the number of recorded traces.
-	traces, err := ms.Traces()
+	traces, err := ms.Traces(TracesOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestAggregateStoreMinEvictAge(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// Verify the eviction.
-	traces, err = ms.Traces()
+	traces, err = ms.Traces(TracesOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
