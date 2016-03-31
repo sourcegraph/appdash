@@ -145,7 +145,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	return trace, nil
 }
 
-func (in *InfluxDBStore) Traces() ([]*Trace, error) {
+func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	traces := make([]*Trace, 0)
 	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s' LIMIT %d", zeroID, in.tracesPerPage)
 	rootSpansResult, err := in.executeOneQuery(rootSpansQuery)

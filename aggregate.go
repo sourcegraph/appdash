@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -56,6 +57,16 @@ func (e AggregateEvent) UnmarshalEvent(as Annotations) (Event, error) {
 		return e, nil
 	}
 	return nil, errors.New("expected one annotation with key=\"JSON\"")
+}
+
+// SlowestRawQuery creates a list of slowest trace IDs (but as strings),
+// then produce a URL which will query for it.
+func (e AggregateEvent) SlowestRawQuery() string {
+	var stringIDs []string
+	for _, slowest := range e.Slowest {
+		stringIDs = append(stringIDs, slowest.String())
+	}
+	return "show=" + strings.Join(stringIDs, ",")
 }
 
 // spanGroupSlowest represents one of the slowest traces in a span group.
@@ -275,7 +286,7 @@ func (as *AggregateStore) Collect(id SpanID, anns ...Annotation) error {
 
 		// Log some statistics: these can be used to identify serious issues
 		// relating to overstorage or memory leakage in the primary data maps.
-		msTraces, err := as.MemoryStore.Traces()
+		msTraces, err := as.MemoryStore.Traces(TracesOpts{})
 		if err != nil {
 			log.Println(err)
 		}
