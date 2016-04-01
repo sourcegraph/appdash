@@ -20,7 +20,7 @@ type Options struct {
 	//   func(traceID int64) { return traceID % 128 == 0 }
 	//
 	// samples 1 in every 128 traces, approximately.
-	ShouldSample func(traceID int64) bool
+	ShouldSample func(traceID uint64) bool
 
 	// Verbose determines whether errors are logged to stdout only once or all
 	// the time. By default, Verbose is false so only the first error is logged
@@ -40,7 +40,7 @@ func newLogger() *log.Logger {
 // true and a logger that logs errors to stderr.
 func DefaultOptions() Options {
 	return Options{
-		ShouldSample: func(_ int64) bool { return true },
+		ShouldSample: func(_ uint64) bool { return true },
 		Logger:       newLogger(),
 	}
 }
