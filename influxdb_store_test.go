@@ -9,14 +9,6 @@ import (
 	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
 )
 
-const (
-	clientEventKey             string = schemaPrefix + clientEventSchema
-	clientEventSchema          string = "HTTPClient"
-	serverEventKey             string = schemaPrefix + serverEventSchema
-	serverEventSchema          string = "HTTPServer"
-	eventSpanNameAnnotationKey string = schemaPrefix + "name"
-)
-
 func TestAddChildren(t *testing.T) {
 	root := &Trace{Span: Span{ID: SpanID{1, 100, 0}}}
 	want := &Trace{
@@ -197,7 +189,7 @@ func TestInfluxDBStore(t *testing.T) {
 				ID: SpanID{1, 100, 0},
 				Annotations: Annotations{
 					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: eventSpanNameAnnotationKey},
+					Annotation{Key: "_schema:name"},
 				},
 			},
 			Sub: []*Trace{
@@ -206,7 +198,7 @@ func TestInfluxDBStore(t *testing.T) {
 						ID: SpanID{Trace: 1, Span: 11, Parent: 100},
 						Annotations: Annotations{
 							Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
-							Annotation{Key: eventSpanNameAnnotationKey},
+							Annotation{Key: "_schema:name"},
 						},
 					},
 					Sub: []*Trace{
@@ -215,7 +207,7 @@ func TestInfluxDBStore(t *testing.T) {
 								ID: SpanID{Trace: 1, Span: 111, Parent: 11},
 								Annotations: Annotations{
 									Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
-									Annotation{Key: eventSpanNameAnnotationKey},
+									Annotation{Key: "_schema:name"},
 								},
 							},
 							Sub: []*Trace{
@@ -224,7 +216,7 @@ func TestInfluxDBStore(t *testing.T) {
 										ID: SpanID{Trace: 1, Span: 1111, Parent: 111},
 										Annotations: Annotations{
 											Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
-											Annotation{Key: eventSpanNameAnnotationKey},
+											Annotation{Key: "_schema:name"},
 										},
 									},
 								},
@@ -239,7 +231,7 @@ func TestInfluxDBStore(t *testing.T) {
 				ID: SpanID{2, 200, 0},
 				Annotations: Annotations{
 					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: eventSpanNameAnnotationKey},
+					Annotation{Key: "_schema:name"},
 				},
 			},
 		},
@@ -335,7 +327,7 @@ func benchmarkInfluxDBStoreCollect(b *testing.B, n int) {
 				Annotations{
 					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
 					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
-					Annotation{Key: serverEventKey, Value: []byte("")},
+					Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 				},
 				Annotations{
 					Annotation{Key: "Name", Value: []byte("/")},
@@ -343,7 +335,7 @@ func benchmarkInfluxDBStoreCollect(b *testing.B, n int) {
 				Annotations{
 					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
 					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
-					Annotation{Key: clientEventKey, Value: []byte("")},
+					Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
 				},
 			}
 			for ann := 0; ann < len(anns); ann++ {
@@ -389,7 +381,7 @@ func BenchmarkInfluxDBStoreCollectParallel(b *testing.B) {
 				Annotations{
 					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
 					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
-					Annotation{Key: serverEventKey, Value: []byte("")},
+					Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 				},
 				Annotations{
 					Annotation{Key: "Name", Value: []byte("/")},
@@ -397,7 +389,7 @@ func BenchmarkInfluxDBStoreCollectParallel(b *testing.B) {
 				Annotations{
 					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
 					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
-					Annotation{Key: clientEventKey, Value: []byte("")},
+					Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
 				},
 			}
 			for ann := 0; ann < len(anns); ann++ {
@@ -520,11 +512,11 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, 
 				Annotations: []Annotation{
 					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
 					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
-					Annotation{Key: serverEventKey, Value: []byte("")},
+					Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 					Annotation{Key: "Name", Value: []byte("/")},
 					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
 					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
-					Annotation{Key: clientEventKey, Value: []byte("")},
+					Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
 				},
 			},
 			Sub: []*Trace{
@@ -534,8 +526,8 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, 
 						Annotations: Annotations{
 							Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
 							Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-							Annotation{Key: clientEventKey, Value: []byte("")},
-							Annotation{Key: serverEventKey, Value: []byte("")},
+							Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+							Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 						},
 					},
 					Sub: []*Trace{
@@ -545,8 +537,8 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, 
 								Annotations: Annotations{
 									Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
 									Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-									Annotation{Key: clientEventKey, Value: []byte("")},
-									Annotation{Key: serverEventKey, Value: []byte("")},
+									Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+									Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 								},
 							},
 							Sub: []*Trace{
@@ -556,8 +548,8 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, 
 										Annotations: Annotations{
 											Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
 											Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-											Annotation{Key: clientEventKey, Value: []byte("")},
-											Annotation{Key: serverEventKey, Value: []byte("")},
+											Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+											Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 										},
 									},
 								},
