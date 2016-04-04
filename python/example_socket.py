@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 # Imports
-from twisted.internet import reactor
 import time
 import appdash
 
