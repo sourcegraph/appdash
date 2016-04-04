@@ -10,8 +10,79 @@ import (
 )
 
 const (
+	clientEventKey             string = schemaPrefix + clientEventSchema
+	clientEventSchema          string = "HTTPClient"
+	serverEventKey             string = schemaPrefix + serverEventSchema
+	serverEventSchema          string = "HTTPServer"
 	eventSpanNameAnnotationKey string = schemaPrefix + "name"
 )
+
+func TestAddChildren(t *testing.T) {
+	root := &Trace{Span: Span{ID: SpanID{1, 100, 0}}}
+	want := &Trace{
+		Span: root.Span,
+		Sub: []*Trace{
+			&Trace{
+				Span: Span{ID: SpanID{1, 101, 100}},
+				Sub: []*Trace{
+					&Trace{
+						Span: Span{ID: SpanID{1, 1011, 101}},
+						Sub: []*Trace{
+							&Trace{
+								Span: Span{ID: SpanID{1, 10111, 1011}},
+							},
+							&Trace{
+								Span: Span{ID: SpanID{1, 10112, 1011}},
+							},
+						},
+					},
+					&Trace{
+						Span: Span{ID: SpanID{1, 1012, 101}},
+					},
+				},
+			},
+			&Trace{
+				Span: Span{ID: SpanID{1, 102, 100}},
+				Sub: []*Trace{
+					&Trace{
+						Span: Span{ID: SpanID{1, 1021, 102}},
+						Sub: []*Trace{
+							&Trace{
+								Span: Span{ID: SpanID{1, 10211, 1021}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	var (
+		children      []*Trace
+		sortSubTraces func(root *Trace)
+		subTraces     func(root *Trace, traces []*Trace) []*Trace
+	)
+	subTraces = func(root *Trace, traces []*Trace) []*Trace {
+		traces = append(traces, root.Sub...)
+		for _, sub := range root.Sub {
+			subTraces(sub, traces)
+		}
+		return traces
+	}
+	sortSubTraces = func(root *Trace) {
+		sort.Sort(tracesByIDSpan(root.Sub))
+		for _, sub := range root.Sub {
+			sortSubTraces(sub)
+		}
+	}
+	if err := addChildren(root, subTraces(want, children)); err != nil {
+		t.Fatal(err)
+	}
+	sortSubTraces(root)
+	sortSubTraces(want)
+	if !reflect.DeepEqual(root, want) {
+		t.Fatalf("got: %v, want: %v", root, want)
+	}
+}
 
 func TestMergeSchemasField(t *testing.T) {
 	cases := []struct {
