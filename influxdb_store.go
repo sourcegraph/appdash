@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/url"
 	"reflect"
 	"strings"
@@ -782,6 +784,9 @@ type InfluxDBStoreConfig struct {
 	DefaultRP InfluxDBRetentionPolicy
 	Mode      mode
 	Server    *influxDBServer.Config
+
+	// LogOutput, if specified, controls where all InfluxDB logs are written to.
+	LogOutput io.Writer
 }
 
 type InfluxDBAdminUser struct {
@@ -793,6 +798,22 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 	s, err := influxDBServer.NewServer(config.Server, config.BuildInfo)
 	if err != nil {
 		return nil, err
+	}
+
+	// If the user specified a log output location, configure everything to use that.
+	if config.LogOutput != nil {
+		l := log.New(config.LogOutput, "[influxdb] ", log.LstdFlags)
+		s.Logger = l
+		for _, svc := range s.Services {
+			svc.SetLogger(l)
+		}
+		s.MetaClient.SetLogger(l)
+		s.Monitor.SetLogger(l)
+		s.PointsWriter.Logger = l
+		s.QueryExecutor.Logger = l
+		s.Subscriber.SetLogger(l)
+		s.TSDBStore.Logger = l
+		s.TSDBStore.SetLogOutput(config.LogOutput)
 	}
 	if err := s.Open(); err != nil {
 		return nil, err
