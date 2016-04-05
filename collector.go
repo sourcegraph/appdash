@@ -226,7 +226,7 @@ func (cc *ChunkedCollector) Flush() error {
 			cc.mu.Lock()
 			if cc.Log != nil {
 				cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
-				cc.Log.Println("ChunkedCollector: queueSize:%v queueSizeBytes:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes)
+				cc.Log.Printf("ChunkedCollector: queueSize:%v queueSizeBytes:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes)
 			}
 			cc.mu.Unlock()
 			errs = append(errs, ErrQueueDropped)
