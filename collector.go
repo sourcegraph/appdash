@@ -176,7 +176,7 @@ func (cc *ChunkedCollector) Collect(span SpanID, anns ...Annotation) error {
 	if cc.MaxQueueSize != 0 && cc.queueSizeBytes+collectionSize > cc.MaxQueueSize {
 		if cc.Log != nil {
 			cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
-			cc.Log.Println("ChunkedCollector: queueSize:%v queueSizeBytes:%v + collectionSize:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes, collectionSize)
+			cc.Log.Printf("ChunkedCollector: queueSize:%v queueSizeBytes:%v + collectionSize:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes, collectionSize)
 		}
 		cc.pendingBySpanID = nil
 		cc.queueSizeBytes = 0
