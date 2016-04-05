@@ -209,6 +209,7 @@ func (cc *ChunkedCollector) Flush() error {
 
 	cc.mu.Lock()
 	pendingBySpanID := cc.pendingBySpanID
+	queueSizeBytes := cc.queueSizeBytes
 	cc.pendingBySpanID = nil
 	cc.queueSizeBytes = 0
 	cc.mu.Unlock()
@@ -226,7 +227,7 @@ func (cc *ChunkedCollector) Flush() error {
 			cc.mu.Lock()
 			if cc.Log != nil {
 				cc.Log.Println("ChunkedCollector: queue entirely dropped (trace data will be missing)")
-				cc.Log.Printf("ChunkedCollector: queueSize:%v queueSizeBytes:%v\n", len(cc.pendingBySpanID), cc.queueSizeBytes)
+				cc.Log.Printf("ChunkedCollector: queueSize:%v queueSizeBytes:%v\n", len(pendingBySpanID), queueSizeBytes)
 			}
 			cc.mu.Unlock()
 			errs = append(errs, ErrQueueDropped)
