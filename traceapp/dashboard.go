@@ -108,11 +108,6 @@ func (a *App) serveDashboard(w http.ResponseWriter, r *http.Request) error {
 
 // serveDashboardData serves the JSON data requested by the dashboards table.
 func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
-	traces, err := a.Queryer.Traces(appdash.TracesOpts{})
-	if err != nil {
-		return err
-	}
-
 	// Parse the query for the start & end timeline durations.
 	var (
 		query      = r.URL.Query()
@@ -134,6 +129,13 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 		}
 		// .eg. if (v)end==72, it'll be time.Now()
 		end = basis.Add(time.Duration(v) * time.Hour)
+	}
+
+	traces, err := a.Queryer.Traces(appdash.TracesOpts{
+		Timespan: appdash.Timespan{S: start, E: end},
+	})
+	if err != nil {
+		return err
 	}
 
 	// Grab the URL to the traces page.
