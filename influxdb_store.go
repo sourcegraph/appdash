@@ -174,7 +174,13 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 
 func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	traces := make([]*Trace, 0)
-	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s' LIMIT %d", zeroID, in.tracesPerPage)
+	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s'", zeroID)
+	if opts.Timespan != (Timespan{}) {
+		start := opts.Timespan.S.UTC().Format(time.RFC3339Nano)
+		end := opts.Timespan.E.UTC().Format(time.RFC3339Nano)
+		rootSpansQuery += fmt.Sprintf(" AND time >= '%s' AND time <= '%s'", start, end)
+	}
+	rootSpansQuery += fmt.Sprintf(" LIMIT %d", in.tracesPerPage)
 	rootSpansResult, err := in.executeOneQuery(rootSpansQuery)
 	if err != nil {
 		return nil, err
