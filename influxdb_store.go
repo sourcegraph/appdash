@@ -148,12 +148,30 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	traces := make([]*Trace, 0)
 	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s'", zeroID)
+
+	// Extends `rootSpansQuery` to add time range filter using the start/end values from `opts.Timespan`.
 	if opts.Timespan != (Timespan{}) {
 		start := opts.Timespan.S.UTC().Format(time.RFC3339Nano)
 		end := opts.Timespan.E.UTC().Format(time.RFC3339Nano)
 		rootSpansQuery += fmt.Sprintf(" AND time >= '%s' AND time <= '%s'", start, end)
 	}
-	rootSpansQuery += fmt.Sprintf(" LIMIT %d", in.tracesPerPage)
+
+	// Extends `rootSpansQuery` to add a filter to include only those spans present in `opts.SpanIDs`.
+	spanIDsLen := len(opts.SpanIDs)
+	if spanIDsLen > 0 {
+		rootSpansQuery += " AND ("
+		for i, spanID := range opts.SpanIDs {
+			rootSpansQuery += fmt.Sprintf("span_id = '%s'", spanID)
+			lastIteration := (i+1 == spanIDsLen)
+			if !lastIteration {
+				rootSpansQuery += " OR "
+			}
+		}
+		rootSpansQuery += ")"
+	} else { // Otherwise continue limiting the number of traces to be returned.
+		rootSpansQuery += fmt.Sprintf(" LIMIT %d", in.tracesPerPage)
+	}
+
 	rootSpansResult, err := in.executeOneQuery(rootSpansQuery)
 	if err != nil {
 		return nil, err

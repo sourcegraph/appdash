@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"sort"
 	"strings"
 	"sync"
 
@@ -153,11 +152,6 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
-	traces, err := a.Queryer.Traces(appdash.TracesOpts{})
-	if err != nil {
-		return err
-	}
-
 	// Parse the query for a comma-separated list of traces that we should only
 	// show (all others are hidden).
 	var showJust []appdash.ID
@@ -170,10 +164,12 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	// Sort the traces by ID to ensure that the display order doesn't change upon
-	// multiple page reloads if Queryer.Traces is e.g. backed by a map (which has
-	// a random iteration order).
-	sort.Sort(tracesByID(traces))
+	traces, err := a.Queryer.Traces(appdash.TracesOpts{
+		SpanIDs: showJust,
+	})
+	if err != nil {
+		return err
+	}
 
 	return a.renderTemplate(w, r, "traces.html", http.StatusOK, &struct {
 		TemplateCommon
@@ -182,21 +178,6 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 	}{
 		Traces: traces,
 		Visible: func(t *appdash.Trace) bool {
-			// Hide the traces that contain aggregate events (that's all they have, so
-			// they are not very useful to users).
-			if t.IsAggregate() {
-				return false
-			}
-
-			if len(showJust) > 0 {
-				// Showing just a few traces.
-				for _, id := range showJust {
-					if id == t.Span.ID.Trace {
-						return true
-					}
-				}
-				return false
-			}
 			return true
 		},
 	})
