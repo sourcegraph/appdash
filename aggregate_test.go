@@ -32,6 +32,7 @@ func TestAggregateStore(t *testing.T) {
 			E: time.Now(),
 		}
 		rec.Event(e)
+		rec.Finish()
 		if errs := rec.Errors(); len(errs) > 0 {
 			t.Fatal(errs)
 		}
@@ -103,6 +104,7 @@ func TestAggregateStoreNSlowest(t *testing.T) {
 				E: now.Add(times[i]),
 			}
 			rec.Event(e)
+			rec.Finish()
 			if errs := rec.Errors(); len(errs) > 0 {
 				t.Fatal(errs)
 			}
@@ -218,6 +220,7 @@ func TestAggregateStoreMinEvictAge(t *testing.T) {
 			E: time.Now(),
 		}
 		rec.Event(e)
+		rec.Finish()
 		if errs := rec.Errors(); len(errs) > 0 {
 			t.Fatal(errs)
 		}
@@ -238,6 +241,7 @@ func TestAggregateStoreMinEvictAge(t *testing.T) {
 	// Trigger the eviction by making any sort of collection.
 	rec := NewRecorder(NewRootSpanID(), as)
 	rec.Name("collect")
+	rec.Finish()
 	if errs := rec.Errors(); len(errs) > 0 {
 		t.Fatal(errs)
 	}

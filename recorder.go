@@ -1,15 +1,22 @@
 package appdash
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
 
+var (
+	errMultipleFinishCalls = errors.New("multiple Recorder.Finish calls")
+)
+
 // A Recorder is associated with a span and records annotations on the
 // span by sending them to a collector.
 type Recorder struct {
-	SpanID // the span ID that annotations are about
+	SpanID                   // the span ID that annotations are about
+	annotations []Annotation // SpanID's annotations to be collected
+	finished    bool         // finished is whether Recorder.Finish was called
 
 	collector Collector // the collector to send to
 
@@ -65,7 +72,23 @@ func (r *Recorder) Event(e Event) {
 		r.error("Event", err)
 		return
 	}
-	r.Annotation(as...)
+	r.annotations = append(r.annotations, as...)
+}
+
+// Finish finishes recording and saves the recorded information to the
+// underlying collector. If Finish is not called, then no data will be written
+// to the underlying collector.
+// Finish must be called once, otherwise r.error is called, this constraint
+// ensures that collector is called once per Recorder, in order to avoid
+// for performance reasons extra operations(span look up & span's annotations update)
+// within the collector.
+func (r *Recorder) Finish() {
+	if r.finished {
+		r.error("Finish", errMultipleFinishCalls)
+		return
+	}
+	r.finished = true
+	r.Annotation(r.annotations...)
 }
 
 // Annotation records raw annotations on the span.
