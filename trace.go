@@ -3,6 +3,7 @@ package appdash
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -98,6 +99,18 @@ func (t *Trace) Aggregated() (*AggregateEvent, []TimespanEvent, error) {
 		return nil, nil, err
 	}
 	return agg, timespans, nil
+}
+
+func (t *Trace) TimespanEvent() (TimespanEvent, error) {
+	var events []Event
+	if err := UnmarshalEvents(t.Annotations, &events); err != nil {
+		return timespanEvent{}, err
+	}
+	start, end, ok := findTraceTimes(events)
+	if !ok {
+		return timespanEvent{}, errors.New("time span event not found")
+	}
+	return timespanEvent{S: start, E: end}, nil
 }
 
 func (t *Trace) treeString(w io.Writer, depth int) {

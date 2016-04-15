@@ -6,8 +6,8 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cznic/mathutil"
@@ -108,11 +108,6 @@ func (a *App) serveDashboard(w http.ResponseWriter, r *http.Request) error {
 
 // serveDashboardData serves the JSON data requested by the dashboards table.
 func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
-	traces, err := a.Queryer.Traces()
-	if err != nil {
-		return err
-	}
-
 	// Parse the query for the start & end timeline durations.
 	var (
 		query      = r.URL.Query()
@@ -136,6 +131,13 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 		end = basis.Add(time.Duration(v) * time.Hour)
 	}
 
+	traces, err := a.Queryer.Traces(appdash.TracesOpts{
+		Timespan: appdash.Timespan{S: start, E: end},
+	})
+	if err != nil {
+		return err
+	}
+
 	// Grab the URL to the traces page.
 	tracesURL, err := a.Router.URLTo(TracesRoute)
 	if err != nil {
@@ -145,36 +147,21 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 	// Important: If it is a nil slice it will be encoded to JSON as null, and the
 	// bootstrap-table library will not update the table with "no entries".
 	rows := make([]dashboardRow, 0)
+	var rowsErr error
 
-	// Produce the rows of data.
-	for _, trace := range traces {
-		// Grab the aggregation event from the trace, if any.
-		agg, timespans, err := trace.Aggregated()
-		if err != nil {
-			return err
-		}
-		if agg == nil {
-			continue // No aggregation event.
-		}
+	// Uses the appropriate strategy to obtain the `rows` to be returned based on the Queryer's type,
+	// this because `InfluxDBStore` & `AggregateStore` handles aggregation logic differently:
+	// `Aggregatestore` uses traces to store aggregation information whereas `InfluxDBStore` performs
+	// sql-like queries to obtain traces which are used to obtain aggregation information.
+	switch a.Queryer.(type) {
+	case *appdash.InfluxDBStore:
+		rows, rowsErr = influxDBStoreRows(traces, tracesURL)
+	default:
+		rows, rowsErr = aggregateStoreRows(traces, start, end, tracesURL)
+	}
 
-		// Filter the event by our timeline.
-		a, timespans, any := aggTimeFilter(*agg, timespans, start, end)
-		if !any {
-			continue
-		}
-
-		// Create a list of slowest trace IDs (but as strings), then produce a
-		// URL which will query for it.
-		var stringIDs []string
-		for _, slowest := range a.Slowest {
-			stringIDs = append(stringIDs, slowest.String())
-		}
-		tracesURL.RawQuery = "show=" + strings.Join(stringIDs, ",")
-
-		// Create the row of data.
-		row := newDashboardRow(a, timespans)
-		row.URL = tracesURL.String()
-		rows = append(rows, row)
+	if rowsErr != nil {
+		return rowsErr
 	}
 
 	// Encode to JSON.
@@ -186,4 +173,73 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 	// Write out.
 	_, err = io.Copy(w, bytes.NewReader(j))
 	return err
+}
+
+func aggregateStoreRows(traces []*appdash.Trace, start time.Time, end time.Time, tracesURL *url.URL) ([]dashboardRow, error) {
+	rows := make([]dashboardRow, 0)
+
+	// Produce the rows of data.
+	for _, trace := range traces {
+		// Grab the aggregation event from the trace, if any.
+		agg, timespans, err := trace.Aggregated()
+		if err != nil {
+			return []dashboardRow{}, err
+		}
+		if agg == nil {
+			continue // No aggregation event.
+		}
+
+		// Filter the event by our timeline.
+		a, timespans, any := aggTimeFilter(*agg, timespans, start, end)
+		if !any {
+			continue
+		}
+
+		tracesURL.RawQuery = a.SlowestRawQuery()
+
+		// Create the row of data.
+		row := newDashboardRow(a, timespans)
+		row.URL = tracesURL.String()
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+// influxDBStoreRows groups given traces by span name which are used to create a slice of `dashboardRow` to be returned.
+func influxDBStoreRows(traces []*appdash.Trace, tracesURL *url.URL) ([]dashboardRow, error) {
+	rows := make([]dashboardRow, 0)                         // Dashboard rows to be returned.
+	groupBySpanName := make(map[string][]*appdash.Trace, 0) // Traces grouped by span name, Trace.Span.Name() -> Trace.
+
+	// Iterate over given traces to group them by span name.
+	for _, trace := range traces {
+		spanName := trace.Span.Name()
+		if t, found := groupBySpanName[spanName]; found {
+			groupBySpanName[spanName] = append(t, trace)
+		} else {
+			groupBySpanName[spanName] = []*appdash.Trace{trace}
+		}
+	}
+
+	// Iterates over grouped traces to create a dashboardRow and append it to the slice to be returned.
+	for spanName, traces := range groupBySpanName {
+		aggregateEvent := appdash.AggregateEvent{Name: spanName}
+		timespans := []appdash.TimespanEvent{}
+
+		// Iterate over traces in order to populate `aggregateEvent` & `timespans`.
+		for _, trace := range traces {
+			aggregateEvent.Slowest = append(aggregateEvent.Slowest, trace.ID.Span)
+			timespan, err := trace.TimespanEvent()
+			if err != nil {
+				return rows, err
+			}
+			timespans = append(timespans, timespan)
+		}
+		tracesURL.RawQuery = aggregateEvent.SlowestRawQuery()
+
+		// Create the row of data.
+		row := newDashboardRow(aggregateEvent, timespans)
+		row.URL = tracesURL.String()
+		rows = append(rows, row)
+	}
+	return rows, nil
 }

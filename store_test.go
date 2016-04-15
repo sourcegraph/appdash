@@ -350,7 +350,7 @@ func TestRecentStore(t *testing.T) {
 	rs.MustCollect(SpanID{1, 2, 3})
 	rs.MustCollect(SpanID{2, 3, 4})
 
-	traces, _ := ms.Traces()
+	traces, _ := ms.Traces(TracesOpts{})
 	if len(traces) != 2 {
 		t.Errorf("got traces %v, want %d total", traces, 2)
 	}
@@ -358,7 +358,7 @@ func TestRecentStore(t *testing.T) {
 	time.Sleep(2 * age)
 	rs.MustCollect(SpanID{3, 4, 5})
 	time.Sleep(2 * age)
-	traces, _ = ms.Traces()
+	traces, _ = ms.Traces(TracesOpts{})
 	if len(traces) != 1 {
 		t.Errorf("got traces %v, want %d total", traces, 1)
 	}
@@ -373,30 +373,30 @@ func TestLimitStore(t *testing.T) {
 	ms := NewMemoryStore()
 	rs := &storeT{t, &LimitStore{DeleteStore: ms, Max: 2}}
 
-	if traces, _ := ms.Traces(); len(traces) != 0 {
+	if traces, _ := ms.Traces(TracesOpts{}); len(traces) != 0 {
 		t.Errorf("got traces %v, want %d total", traces, 0)
 	}
 
 	rs.MustCollect(SpanID{1, 2, 3})
 
-	if traces, _ := ms.Traces(); len(traces) != 1 {
+	if traces, _ := ms.Traces(TracesOpts{}); len(traces) != 1 {
 		t.Errorf("got traces %v, want %d total", traces, 1)
 	}
 
 	rs.MustCollect(SpanID{2, 3, 4})
 
-	if traces, _ := ms.Traces(); len(traces) != 2 {
+	if traces, _ := ms.Traces(TracesOpts{}); len(traces) != 2 {
 		t.Errorf("got traces %v, want %d total", traces, 2)
 	}
 
 	rs.MustCollect(SpanID{3, 4, 5})
 	rs.MustCollect(SpanID{3, 5, 6})
 
-	if traces, _ := ms.Traces(); len(traces) != 2 {
+	if traces, _ := ms.Traces(TracesOpts{}); len(traces) != 2 {
 		t.Errorf("got traces %v, want %d total", traces, 2)
 	}
 
-	traces, _ := ms.Traces()
+	traces, _ := ms.Traces(TracesOpts{})
 	want := []*Trace{
 		{Span: Span{ID: SpanID{2, 3, 4}}},
 		{
