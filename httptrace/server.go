@@ -103,6 +103,7 @@ func Middleware(c appdash.Collector, conf *MiddlewareConfig) func(rw http.Respon
 			rec.Name(r.URL.Host + r.URL.Path)
 		}
 		rec.Event(e)
+		rec.Finish()
 	}
 }
 

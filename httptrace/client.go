@@ -158,6 +158,7 @@ func (t *Transport) RoundTrip(original *http.Request) (*http.Response, error) {
 		e.Response.StatusCode = -1
 	}
 	child.Event(e)
+	child.Finish()
 	return resp, err
 }
 

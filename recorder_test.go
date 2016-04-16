@@ -26,17 +26,18 @@ func TestRecorder(t *testing.T) {
 	r := NewRecorder(id, c)
 
 	r.Msg("msg")
-	if calledCollect != 1 {
-		t.Errorf("got calledCollect %d, want 1", calledCollect)
+	r.Name("name")
+
+	if calledCollect != 0 {
+		t.Errorf("got calledCollect %d, want 0", calledCollect)
 	}
+
+	r.Finish()
+
 	if diff := diffAnnotationsFromEvent(anns, Msg("msg")); len(diff) > 0 {
 		t.Errorf("got diff annotations for Msg event:\n%s", strings.Join(diff, "\n"))
 	}
 
-	r.Name("name")
-	if calledCollect != 2 {
-		t.Errorf("got calledCollect %d, want 1", calledCollect)
-	}
 	if diff := diffAnnotationsFromEvent(anns, spanName{"name"}); len(diff) > 0 {
 		t.Errorf("got diff annotations for spanName event:\n%s", strings.Join(diff, "\n"))
 	}
@@ -53,9 +54,10 @@ func TestRecorder_Errors(t *testing.T) {
 	r := NewRecorder(SpanID{}, c)
 
 	r.Msg("msg")
-	if calledCollect != 2 {
-		t.Errorf("got calledCollect %d, want 1", calledCollect)
+	if calledCollect != 0 {
+		t.Errorf("got calledCollect %d, want 0", calledCollect)
 	}
+	r.Finish()
 	errs := r.Errors()
 	if want := []error{collectErr}; !reflect.DeepEqual(errs, want) {
 		t.Errorf("got errors %v, want %v", errs, want)
@@ -63,6 +65,11 @@ func TestRecorder_Errors(t *testing.T) {
 
 	if errs := r.Errors(); len(errs) != 0 {
 		t.Errorf("got len(errs) == %d, want 0 (after call to Errors)", len(errs))
+	}
+
+	r.Finish()
+	if errs := r.Errors(); len(errs) != 1 && errs[0] != errMultipleFinishCalls {
+		t.Errorf("got %d errors, want 1", len(errs))
 	}
 }
 
