@@ -28,7 +28,7 @@ var (
 
 // TraceOpts bundles the options used for list of traces.
 type TracesOpts struct {
-	// Timespan specifies a time range values and can be used as input for filtering traces.
+	// Timespan specifies a time range values which can be used as input for filtering traces.
 	Timespan Timespan
 
 	// SpanIDs specifies which spans are included when filtering traces.
