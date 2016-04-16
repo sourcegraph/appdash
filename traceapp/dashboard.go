@@ -72,25 +72,6 @@ func newDashboardRow(a appdash.AggregateEvent, timespans []appdash.TimespanEvent
 	return row
 }
 
-// aggTimeFilter removes timespans and slowest-trace IDs from the given
-// aggregate event if they were not defined inside the given start and end time.
-func aggTimeFilter(a appdash.AggregateEvent, timespans []appdash.TimespanEvent, start, end time.Time) (appdash.AggregateEvent, []appdash.TimespanEvent, bool) {
-	cpy := a
-	cpy.Slowest = nil
-	var cpyTimes []appdash.TimespanEvent
-	for n, ts := range timespans {
-		if ts.Start().UnixNano() < start.UnixNano() || ts.End().UnixNano() > end.UnixNano() {
-			// It started before or after the time period we want.
-			continue
-		}
-		cpyTimes = append(cpyTimes, ts)
-		if n < len(a.Slowest) {
-			cpy.Slowest = append(cpy.Slowest, a.Slowest[n])
-		}
-	}
-	return cpy, cpyTimes, len(cpyTimes) > 0
-}
-
 // serverDashboard serves the dashboard page.
 func (a *App) serveDashboard(w http.ResponseWriter, r *http.Request) error {
 	uData, err := a.Router.URLTo(DashboardDataRoute)
@@ -146,22 +127,9 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 
 	// Important: If it is a nil slice it will be encoded to JSON as null, and the
 	// bootstrap-table library will not update the table with "no entries".
-	rows := make([]dashboardRow, 0)
-	var rowsErr error
-
-	// Uses the appropriate strategy to obtain the `rows` to be returned based on the Queryer's type,
-	// this because `InfluxDBStore` & `AggregateStore` handles aggregation logic differently:
-	// `Aggregatestore` uses traces to store aggregation information whereas `InfluxDBStore` performs
-	// sql-like queries to obtain traces which are used to obtain aggregation information.
-	switch a.Queryer.(type) {
-	case *appdash.InfluxDBStore:
-		rows, rowsErr = influxDBStoreRows(traces, tracesURL)
-	default:
-		rows, rowsErr = aggregateStoreRows(traces, start, end, tracesURL)
-	}
-
-	if rowsErr != nil {
-		return rowsErr
+	rows, err := influxDBStoreRows(traces, tracesURL)
+	if err != nil {
+		return err
 	}
 
 	// Encode to JSON.
@@ -173,36 +141,6 @@ func (a *App) serveDashboardData(w http.ResponseWriter, r *http.Request) error {
 	// Write out.
 	_, err = io.Copy(w, bytes.NewReader(j))
 	return err
-}
-
-func aggregateStoreRows(traces []*appdash.Trace, start time.Time, end time.Time, tracesURL *url.URL) ([]dashboardRow, error) {
-	rows := make([]dashboardRow, 0)
-
-	// Produce the rows of data.
-	for _, trace := range traces {
-		// Grab the aggregation event from the trace, if any.
-		agg, timespans, err := trace.Aggregated()
-		if err != nil {
-			return []dashboardRow{}, err
-		}
-		if agg == nil {
-			continue // No aggregation event.
-		}
-
-		// Filter the event by our timeline.
-		a, timespans, any := aggTimeFilter(*agg, timespans, start, end)
-		if !any {
-			continue
-		}
-
-		tracesURL.RawQuery = a.SlowestRawQuery()
-
-		// Create the row of data.
-		row := newDashboardRow(a, timespans)
-		row.URL = tracesURL.String()
-		rows = append(rows, row)
-	}
-	return rows, nil
 }
 
 // influxDBStoreRows groups given traces by span name which are used to create a slice of `dashboardRow` to be returned.
