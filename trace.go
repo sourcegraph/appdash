@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // A Trace is a tree of spans.
@@ -44,61 +45,6 @@ func (t *Trace) TreeString() string {
 	var buf bytes.Buffer
 	t.treeString(&buf, 0)
 	return buf.String()
-}
-
-// IsAggregate tells if the trace contains any AggregateEvents (it is therefor
-// said to be a set of aggregated traces).
-func (t *Trace) IsAggregate() bool {
-	aggSchema := schemaPrefix + AggregateEvent{}.Schema()
-	var walk func(t *Trace) bool
-	walk = func(t *Trace) bool {
-		for _, ann := range t.Annotations {
-			if ann.Key == aggSchema {
-				return true
-			}
-		}
-		for _, sub := range t.Sub {
-			if walk(sub) {
-				return true
-			}
-		}
-		return false
-	}
-	return walk(t)
-}
-
-// Aggregated returns the aggregate event (or nil if none is found) along with
-// all of the TimespanEvents found in this trace.
-func (t *Trace) Aggregated() (*AggregateEvent, []TimespanEvent, error) {
-	var (
-		agg       *AggregateEvent
-		timespans []TimespanEvent
-		walk      func(t *Trace) error
-	)
-	walk = func(t *Trace) error {
-		var evs []Event
-		err := UnmarshalEvents(t.Annotations, &evs)
-		if err != nil {
-			return err
-		}
-		for _, ev := range evs {
-			if a, ok := ev.(AggregateEvent); ok {
-				agg = &a
-			} else if t, ok := ev.(TimespanEvent); ok {
-				timespans = append(timespans, t)
-			}
-		}
-		for _, sub := range t.Sub {
-			if err := walk(sub); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if err := walk(t); err != nil {
-		return nil, nil, err
-	}
-	return agg, timespans, nil
 }
 
 func (t *Trace) TimespanEvent() (TimespanEvent, error) {
@@ -142,6 +88,40 @@ func (t *Trace) treeString(w io.Writer, depth int) {
 	for _, sub := range t.Sub {
 		sub.treeString(w, depth+1)
 	}
+}
+
+// findTraceTimes finds the minimum and maximum timespan event times for the
+// given set of events, or returns ok == false if there are no such events.
+func findTraceTimes(events []Event) (start, end time.Time, ok bool) {
+	// Find the start and end time of the trace.
+	var (
+		eStart, eEnd time.Time
+		haveTimes    = false
+	)
+	for _, e := range events {
+		e, ok := e.(TimespanEvent)
+		if !ok {
+			continue
+		}
+		if !haveTimes {
+			haveTimes = true
+			eStart = e.Start()
+			eEnd = e.End()
+			continue
+		}
+		if v := e.Start(); v.UnixNano() < eStart.UnixNano() {
+			eStart = v
+		}
+		if v := e.End(); v.UnixNano() > eEnd.UnixNano() {
+			eEnd = v
+		}
+	}
+	if !haveTimes {
+		// We didn't find any timespan events at all, so we're done here.
+		ok = false
+		return
+	}
+	return eStart, eEnd, true
 }
 
 type tracesByIDSpan []*Trace

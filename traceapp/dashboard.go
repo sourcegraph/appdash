@@ -8,11 +8,38 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cznic/mathutil"
 	"sourcegraph.com/sourcegraph/appdash"
 )
+
+func init() {
+	appdash.RegisterEvent(aggregateEvent{})
+}
+
+// aggregateEvent represents an aggregated set of timespan events.
+type aggregateEvent struct {
+	// The root span name of every item in this aggregated set of timespan events.
+	name string
+
+	// Trace IDs for the slowest of the above times (useful for inspection).
+	slowest []appdash.ID
+}
+
+// Schema implements the Event interface.
+func (e aggregateEvent) Schema() string { return "aggregate" }
+
+// slowestRawQuery creates a list of slowest trace IDs (but as strings),
+// then produce a URL which will query for it.
+func (e aggregateEvent) slowestRawQuery() string {
+	var stringIDs []string
+	for _, slowest := range e.slowest {
+		stringIDs = append(stringIDs, slowest.String())
+	}
+	return "show=" + strings.Join(stringIDs, ",")
+}
 
 // dashboardRow represents a single row in the dashboard. It is encoded to JSON.
 type dashboardRow struct {
@@ -27,9 +54,9 @@ type dashboardRow struct {
 // the whole aggregation event).
 //
 // The returned row does not have the URL field set.
-func newDashboardRow(a appdash.AggregateEvent, timespans []appdash.TimespanEvent) dashboardRow {
+func newDashboardRow(a aggregateEvent, timespans []appdash.TimespanEvent) dashboardRow {
 	row := dashboardRow{
-		Name:      a.Name,
+		Name:      a.name,
 		Timespans: len(timespans),
 	}
 
@@ -160,22 +187,22 @@ func influxDBStoreRows(traces []*appdash.Trace, tracesURL *url.URL) ([]dashboard
 
 	// Iterates over grouped traces to create a dashboardRow and append it to the slice to be returned.
 	for spanName, traces := range groupBySpanName {
-		aggregateEvent := appdash.AggregateEvent{Name: spanName}
+		aggEvent := aggregateEvent{name: spanName}
 		timespans := []appdash.TimespanEvent{}
 
 		// Iterate over traces in order to populate `aggregateEvent` & `timespans`.
 		for _, trace := range traces {
-			aggregateEvent.Slowest = append(aggregateEvent.Slowest, trace.ID.Span)
+			aggEvent.slowest = append(aggEvent.slowest, trace.ID.Span)
 			timespan, err := trace.TimespanEvent()
 			if err != nil {
 				return rows, err
 			}
 			timespans = append(timespans, timespan)
 		}
-		tracesURL.RawQuery = aggregateEvent.SlowestRawQuery()
+		tracesURL.RawQuery = aggEvent.slowestRawQuery()
 
 		// Create the row of data.
-		row := newDashboardRow(aggregateEvent, timespans)
+		row := newDashboardRow(aggEvent, timespans)
 		row.URL = tracesURL.String()
 		rows = append(rows, row)
 	}
