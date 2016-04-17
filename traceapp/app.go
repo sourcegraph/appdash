@@ -166,7 +166,7 @@ func (a *App) serveTraces(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	traces, err := a.Queryer.Traces(appdash.TracesOpts{
-		SpanIDs: showJust,
+		TraceIDs: showJust,
 	})
 	if err != nil {
 		return err

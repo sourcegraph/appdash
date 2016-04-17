@@ -263,13 +263,13 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 		rootSpansQuery += fmt.Sprintf(" AND time >= '%s' AND time <= '%s'", start, end)
 	}
 
-	// Extends `rootSpansQuery` to add a filter to include only those spans present in `opts.SpanIDs`.
-	spanIDsLen := len(opts.SpanIDs)
-	if spanIDsLen > 0 {
+	// Extends `rootSpansQuery` to add a filter to include only those traces present in `opts.TraceIDs`.
+	traceIDsLen := len(opts.TraceIDs)
+	if traceIDsLen > 0 {
 		rootSpansQuery += " AND ("
-		for i, spanID := range opts.SpanIDs {
-			rootSpansQuery += fmt.Sprintf("span_id = '%s'", spanID)
-			lastIteration := (i+1 == spanIDsLen)
+		for i, traceID := range opts.TraceIDs {
+			rootSpansQuery += fmt.Sprintf("trace_id = '%s'", traceID)
+			lastIteration := (i+1 == traceIDsLen)
 			if !lastIteration {
 				rootSpansQuery += " OR "
 			}

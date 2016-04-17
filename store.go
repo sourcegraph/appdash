@@ -31,8 +31,8 @@ type TracesOpts struct {
 	// Timespan specifies a time range values which can be used as input for filtering traces.
 	Timespan Timespan
 
-	// SpanIDs specifies which spans are included when filtering traces.
-	SpanIDs []ID
+	// TraceIDs filters the returned traces to just the ones with the given IDs.
+	TraceIDs []ID
 }
 
 // A Queryer indexes spans and makes them queryable.
