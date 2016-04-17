@@ -142,7 +142,12 @@ func (t *Transport) RoundTrip(original *http.Request) (*http.Response, error) {
 	if t.SetName {
 		child.Name(req.URL.Host + req.URL.Path)
 	}
-	SetSpanIDHeader(req.Header, child.SpanID)
+
+	// New child span is created and set as HTTP header instead of using `child`
+	// in order to have a single span recording operation per httptrace event(HTTPClient or HTTPServer).
+	span := appdash.NewSpanID(t.Recorder.SpanID)
+
+	SetSpanIDHeader(req.Header, span)
 
 	e := NewClientEvent(req)
 	e.ClientSend = time.Now()
