@@ -35,8 +35,9 @@ import (
 type App struct {
 	*Router
 
-	Store   appdash.Store
-	Queryer appdash.Queryer
+	Store      appdash.Store
+	Queryer    appdash.Queryer
+	Aggregator appdash.Aggregator
 
 	tmplLock sync.Mutex
 	tmpls    map[string]*htmpl.Template

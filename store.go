@@ -41,6 +41,40 @@ type Queryer interface {
 	Traces(opts TracesOpts) ([]*Trace, error)
 }
 
+// AggregatedResult represents a set of traces that were aggregated together by
+// root span name to produce some useful metrics (average trace time, minimum
+// time, a link to the slowest traces, etc).
+type AggregatedResult struct {
+	// RootSpanName is the name of the root span of the traces that were
+	// aggregated to form this result.
+	RootSpanName string
+
+	// Average, Minimum, Maximum, and standard deviation of the total trace
+	// times (earliest span start time, latest span end time) of all traces
+	// that were aggregated to produce this result, respectively.
+	Average, Min, Max, StdDev time.Duration
+
+	// Samples is the number of traces that were sampled in order to produce
+	// this result.
+	Samples int64
+
+	// Slowest is the N-slowest trace IDs that were part of this group, such
+	// that these are the most valuable/slowest traces for inspection.
+	Slowest []ID
+}
+
+// Aggregator is a type of store that can aggregate its trace data and return
+// results about it.
+type Aggregator interface {
+	// Aggregate should return the aggregated data for all traces within the
+	// past 72/hr, such that:
+	//
+	//  Aggregate(-72 * time.Hour, 0)
+	//
+	// would return all possible results.
+	Aggregate(start, end time.Duration) ([]*AggregatedResult, error)
+}
+
 // NewMemoryStore creates a new in-memory store
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{

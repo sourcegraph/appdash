@@ -64,6 +64,7 @@ func main() {
 	tapp := traceapp.New(nil)
 	tapp.Store = store
 	tapp.Queryer = store
+	tapp.Aggregator = store
 	log.Println("Appdash web UI running on HTTP :8700")
 	go func() {
 		log.Fatal(http.ListenAndServe(":8700", tapp))
