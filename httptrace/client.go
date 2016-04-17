@@ -140,7 +140,7 @@ func (t *Transport) RoundTrip(original *http.Request) (*http.Response, error) {
 
 	child := t.Recorder.Child()
 	if t.SetName {
-		child.Name(req.URL.Host + req.URL.Path)
+		child.Name("Request " + req.URL.Host + req.URL.Path)
 	}
 
 	// New child span is created and set as HTTP header instead of using `child`
