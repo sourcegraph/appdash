@@ -57,13 +57,6 @@ type InfluxDBStore struct {
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
-	// Find a span's point, if found it will be rewritten with new given annotations(`anns`)
-	// if not found, a new span's point will be write to `in.dbName`.
-	p, err := in.findSpanPoint(id)
-	if err != nil {
-		return err
-	}
-
 	// trace_id, span_id & parent_id are mostly used as part of the "where" part on queries so
 	// to have performant queries these are set as tags(InfluxDB indexes tags).
 	tags := map[string]string{
@@ -78,34 +71,14 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		fields[ann.Key] = string(ann.Value)
 	}
 
-	if p != nil { // span exists on `in.dbName`.
-		p.Measurement = spanMeasurementName
-		p.Tags = tags
-
-		// Using extendFields & withoutEmptyFields in order to have pointFields that only contains:
-		// - Fields that are not saved on DB.
-		// - Fields that are saved but have empty values.
-		fields := extendFields(fields, withoutEmptyFields(p.Fields))
-		schemas, err := mergeSchemasField(schemasFromAnnotations(anns), p.Fields[schemasFieldName])
-		if err != nil {
-			return err
-		}
-
-		// `schemas` contains the result of merging(without duplications)
-		// schemas already saved on DB and schemas present on `anns`.
-		fields[schemasFieldName] = schemas
-		p.Fields = fields
-	} else { // new span to be saved on DB.
-
-		// `schemasFieldName` field contains all the schemas found on `anns`.
-		// Eg. fields[schemasFieldName] = "HTTPClient,HTTPServer"
-		fields[schemasFieldName] = schemasFromAnnotations(anns)
-		p = &influxDBClient.Point{
-			Measurement: spanMeasurementName,
-			Tags:        tags,
-			Fields:      fields,
-			Time:        time.Now().UTC(),
-		}
+	// `schemasFieldName` field contains all the schemas found on `anns`.
+	// Eg. fields[schemasFieldName] = "HTTPClient,HTTPServer"
+	fields[schemasFieldName] = schemasFromAnnotations(anns)
+	p := &influxDBClient.Point{
+		Measurement: spanMeasurementName,
+		Tags:        tags,
+		Fields:      fields,
+		Time:        time.Now().UTC(),
 	}
 
 	// A single point represents one span.
@@ -330,51 +303,6 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 	return &response.Results[0], nil
 }
 
-func (in *InfluxDBStore) findSpanPoint(ID SpanID) (*influxDBClient.Point, error) {
-	q := fmt.Sprintf(`SELECT * FROM spans WHERE trace_id='%s' AND span_id='%s' AND parent_id='%s'`, ID.Trace, ID.Span, ID.Parent)
-	result, err := in.executeOneQuery(q)
-	if err != nil {
-		return nil, err
-	}
-	if result.Err != nil {
-		return nil, result.Err
-	}
-	if len(result.Series) == 0 {
-		return nil, nil
-	}
-	if len(result.Series) > 1 {
-		return nil, errMultipleSeries
-	}
-	r := result.Series[0]
-	if len(r.Values) == 0 {
-		return nil, errors.New("unexpected empty series")
-	}
-	p := influxDBClient.Point{
-		Fields: make(pointFields, 0),
-	}
-	fields := r.Values[0]
-	for i, field := range fields {
-		key := r.Columns[i]
-		switch field.(type) {
-		case string:
-			// time field is set by InfluxDB not related to annotations.
-			if key == "time" {
-				t, err := time.Parse(time.RFC3339Nano, field.(string))
-				if err != nil {
-					return nil, err
-				}
-				p.Time = t
-			}
-			p.Fields[key] = field.(string)
-		case nil:
-			continue
-		default:
-			return nil, fmt.Errorf("unexpected field type: %v", reflect.TypeOf(field))
-		}
-	}
-	return &p, err
-}
-
 func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	in.server = server
 	url, err := url.Parse(fmt.Sprintf("http://%s:%d", influxDBClient.DefaultHost, influxDBClient.DefaultPort))
@@ -450,16 +378,6 @@ func annotationsFromEvents(a Annotations) (Annotations, error) {
 		annotations = append(annotations, anns...)
 	}
 	return annotations, nil
-}
-
-// extendFields replaces existing items on dst from src.
-func extendFields(dst, src pointFields) pointFields {
-	for k, v := range src {
-		if _, present := dst[k]; present {
-			dst[k] = v
-		}
-	}
-	return dst
 }
 
 // fieldToSpanID converts given field to span ID.
@@ -547,52 +465,6 @@ func findTraceParent(root, child *Trace) *Trace {
 		return nil
 	}
 	return walkToParent(root, child)
-}
-
-// mergeSchemasField merges new and old which are a set of schemas(strings) separated by `schemasFieldSeparator`.
-// Returns the result of merging new & old without duplications.
-func mergeSchemasField(new, old interface{}) (string, error) {
-	// Since new and old have the same data structures(a set of strings separated by `schemasFieldSeparator`).
-	// So same logic is applied to both.
-	fields := []interface{}{new, old}
-	var strFields []string
-
-	// Iterates over fields to convert each into a string and appends it to `strFields` for later usage.
-	for _, field := range fields {
-		switch field.(type) {
-		case string:
-			strFields = append(strFields, field.(string))
-		case nil:
-			continue
-		default:
-			return "", fmt.Errorf("unexpected schema field type: %v", reflect.TypeOf(field))
-		}
-	}
-
-	// Schemas cache, used to keep track schemas to be returned(without duplications).
-	schemas := make(map[string]string, 0)
-
-	// Iterates over `strFields` to convert each into a slice([]string), then iterates over it in order to
-	// add each to `schemas` if not present already.
-	for _, strField := range strFields {
-		if strField == "" {
-			continue
-		}
-		sf := strings.Split(strField, schemasFieldSeparator)
-		for _, s := range sf {
-			if _, found := schemas[s]; !found {
-				schemas[s] = s
-			}
-		}
-	}
-
-	var result []string
-	for k, _ := range schemas {
-		result = append(result, k)
-	}
-
-	// Returns a string which contains all the schemas separated by `schemasFieldSeparator`.
-	return strings.Join(result, schemasFieldSeparator), nil
 }
 
 // schemasFromAnnotations returns a string(a set of schemas(strings) separated by `schemasFieldSeparator`) - eg. "HTTPClient,HTTPServer,name".

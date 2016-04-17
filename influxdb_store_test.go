@@ -76,31 +76,6 @@ func TestAddChildren(t *testing.T) {
 	}
 }
 
-func TestMergeSchemasField(t *testing.T) {
-	cases := []struct {
-		NewField string
-		OldField string
-		Want     string
-	}{
-		{NewField: "", OldField: "", Want: ""},
-		{NewField: "HTTPClient", OldField: "", Want: "HTTPClient"},
-		{NewField: "", OldField: "name", Want: "name"},
-		{NewField: "HTTPClient", OldField: "name", Want: "HTTPClient,name"},
-		{NewField: "HTTPServer", OldField: "HTTPClient,name", Want: "HTTPServer,HTTPClient,name"},
-	}
-	for i, c := range cases {
-		got, err := mergeSchemasField(c.NewField, c.OldField)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		got = sortSchemas(got)
-		want := sortSchemas(c.Want)
-		if got != want {
-			t.Fatalf("case #%d - got: %v, want: %v", i, got, c.Want)
-		}
-	}
-}
-
 func TestSchemasFromAnnotations(t *testing.T) {
 	anns := []Annotation{
 		Annotation{Key: schemaPrefix + "HTTPClient"},
