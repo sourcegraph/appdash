@@ -212,6 +212,12 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 	for i, row := range result.Series {
 		v := row.Values[0]
 		mean, min, max, stddev, count := v[1], v[2], v[3], v[4], v[5]
+		if stddev == nil {
+			// stddev will be nil when there were not enough items to be able
+			// to calculate a standard deviation.
+			stddev = json.Number("0")
+		}
+
 		results[i] = &AggregatedResult{
 			RootSpanName: row.Tags["name"],
 			Average:      time.Duration(mustJSONFloat64(mean) * float64(time.Second)),
