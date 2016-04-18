@@ -102,6 +102,16 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	// `schemasFieldName` field contains all the schemas found on `anns`.
 	// Eg. fields[schemasFieldName] = "HTTPClient,HTTPServer"
 	fields[schemasFieldName] = schemasFromAnnotations(anns)
+
+	// Tag values cannot contain newlines or they mess up the WRITE and cause
+	// errors.
+	//
+	// TODO: investigate why this is; possibly related to https://github.com/influxdata/influxdb/issues/3545
+	//       which was only for fields (not tags).
+	for k, v := range tags {
+		tags[k] = strings.Replace(v, "\n", " ", -1)
+	}
+
 	p := &influxDBClient.Point{
 		Measurement: spanMeasurementName,
 		Tags:        tags,
