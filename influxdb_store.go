@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"reflect"
 	"strings"
@@ -802,18 +801,7 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 
 	// If the user specified a log output location, configure everything to use that.
 	if config.LogOutput != nil {
-		l := log.New(config.LogOutput, "[influxdb] ", log.LstdFlags)
-		s.Logger = l
-		for _, svc := range s.Services {
-			svc.SetLogger(l)
-		}
-		s.MetaClient.SetLogger(l)
-		s.Monitor.SetLogger(l)
-		s.PointsWriter.Logger = l
-		s.QueryExecutor.Logger = l
-		s.Subscriber.SetLogger(l)
-		s.TSDBStore.Logger = l
-		s.TSDBStore.SetLogOutput(config.LogOutput)
+		s.SetLogOutput(config.LogOutput)
 	}
 	if err := s.Open(); err != nil {
 		return nil, err
