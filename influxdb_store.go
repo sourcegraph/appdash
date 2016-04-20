@@ -46,10 +46,11 @@ var (
 type pointFields map[string]interface{}
 
 type InfluxDBStore struct {
-	adminUser InfluxDBAdminUser       // InfluxDB server auth credentials.
-	con       *influxDBClient.Client  // InfluxDB client connection.
-	dbName    string                  // InfluxDB database name for this store.
-	defaultRP InfluxDBRetentionPolicy // Default retention policy for `dbName`.
+	adminUser    InfluxDBAdminUser       // InfluxDB server auth credentials.
+	con          *influxDBClient.Client  // InfluxDB client connection.
+	dbName       string                  // InfluxDB database name for this store.
+	defaultRP    InfluxDBRetentionPolicy // Default retention policy for `dbName`.
+	clientTarget *url.URL                // HTTP URL that the client should connect to,
 
 	// When set to `testMode` - `testDBName` will be dropped and created, so newly database is ready for tests.
 	mode          mode                   // Used to check current mode(release or test).
@@ -457,15 +458,10 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 
 func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	in.server = server
-	url, err := url.Parse(fmt.Sprintf("http://%s:%d", influxDBClient.DefaultHost, influxDBClient.DefaultPort))
-	if err != nil {
-		return err
-	}
-
 	// TODO: Upgrade to client v2, see: github.com/influxdata/influxdb/blob/master/client/v2/client.go
 	// We're currently using v1.
 	con, err := influxDBClient.NewClient(influxDBClient.Config{
-		URL:      *url,
+		URL:      *in.clientTarget,
 		Username: in.adminUser.Username,
 		Password: in.adminUser.Password,
 	})
@@ -801,10 +797,20 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 	if err := s.Open(); err != nil {
 		return nil, err
 	}
+
+	httpdAddr := config.Server.HTTPD.BindAddress
+	if httpdAddr == "" {
+		httpdAddr = fmt.Sprintf("%s:%d", influxDBClient.DefaultHost, influxDBClient.DefaultPort)
+	}
+	clientTarget, err := url.Parse("http://" + httpdAddr)
+	if err != nil {
+		return nil, err
+	}
 	in := InfluxDBStore{
-		adminUser: config.AdminUser,
-		defaultRP: config.DefaultRP,
-		mode:      config.Mode,
+		adminUser:    config.AdminUser,
+		defaultRP:    config.DefaultRP,
+		mode:         config.Mode,
+		clientTarget: clientTarget,
 	}
 	if err := in.init(s); err != nil {
 		return nil, err
