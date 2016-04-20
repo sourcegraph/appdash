@@ -47,6 +47,15 @@ func main() {
 	// Minimum duration time is 1 hour ("1h") - See: github.com/influxdata/influxdb/issues/5198
 	defaultRP := appdash.InfluxDBRetentionPolicy{Name: "one_day_only", Duration: "1d"}
 
+	// Configure InfluxDB ports, if you desire:
+	//conf.Admin.BindAddress = ":8083"
+	//conf.BindAddress = ":8088"
+	//conf.CollectdInputs[0].BindAddress = "" // auto-chosen
+	//conf.GraphiteInputs[0].BindAddress = ":2003"
+	//conf.HTTPD.BindAddress = ":8086"
+	//conf.OpenTSDBInputs[0].BindAddress = ":4242"
+	//conf.UDPInputs[0].BindAddress = "" // auto-chosen
+
 	store, err := appdash.NewInfluxDBStore(appdash.InfluxDBStoreConfig{
 		AdminUser: user,
 		BuildInfo: &influxDBServer.BuildInfo{},
