@@ -1,6 +1,7 @@
 package appdash
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -65,15 +66,52 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		"parent_id": id.Parent.String(),
 	}
 
+	// Find the start and end time of the span.
+	var events []Event
+	if err := UnmarshalEvents(anns, &events); err != nil {
+		return err
+	}
+	var (
+		foundItems int
+		name       string
+		duration   time.Duration
+	)
+	for _, ev := range events {
+		switch v := ev.(type) {
+		case spanName:
+			foundItems++
+			name = v.Name
+		case TimespanEvent:
+			foundItems++
+			duration = v.End().Sub(v.Start())
+		}
+	}
+
 	// Annotations `anns` are set as fields(InfluxDB does not index fields).
 	fields := make(map[string]interface{}, len(anns))
 	for _, ann := range anns {
 		fields[ann.Key] = string(ann.Value)
 	}
 
+	// If we have span name and duration, set them as a tag and field.
+	if foundItems == 2 {
+		tags["name"] = name
+		fields["duration"] = float64(duration) / float64(time.Second)
+	}
+
 	// `schemasFieldName` field contains all the schemas found on `anns`.
 	// Eg. fields[schemasFieldName] = "HTTPClient,HTTPServer"
 	fields[schemasFieldName] = schemasFromAnnotations(anns)
+
+	// Tag values cannot contain newlines or they mess up the WRITE and cause
+	// errors.
+	//
+	// TODO: investigate why this is; possibly related to https://github.com/influxdata/influxdb/issues/3545
+	//       which was only for fields (not tags).
+	for k, v := range tags {
+		tags[k] = strings.Replace(v, "\n", " ", -1)
+	}
+
 	p := &influxDBClient.Point{
 		Measurement: spanMeasurementName,
 		Tags:        tags,
@@ -145,9 +183,123 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 	return trace, nil
 }
 
-func (in *InfluxDBStore) Traces() ([]*Trace, error) {
+func mustJSONFloat64(x interface{}) float64 {
+	n := x.(json.Number)
+	v, err := n.Float64()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func mustJSONInt64(x interface{}) int64 {
+	n := x.(json.Number)
+	v, err := n.Int64()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// Aggregate implements the Aggregator interface.
+func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResult, error) {
+	// Find the mean (average), minimum, maximum, std. deviation, and count of
+	// all spans.
+	q := `SELECT MEAN("duration"),MIN("duration"),MAX("duration"),STDDEV("duration"),COUNT("duration") from spans`
+	q += fmt.Sprintf(
+		" WHERE time >= '%s' AND time <= '%s'",
+		time.Now().Add(start).UTC().Format(time.RFC3339Nano),
+		time.Now().Add(end).UTC().Format(time.RFC3339Nano),
+	)
+	q += ` GROUP BY "name"`
+	result, err := in.executeOneQuery(q)
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate the results.
+	results := make([]*AggregatedResult, len(result.Series))
+	for i, row := range result.Series {
+		v := row.Values[0]
+		mean, min, max, stddev, count := v[1], v[2], v[3], v[4], v[5]
+		if stddev == nil {
+			// stddev will be nil when there were not enough items to be able
+			// to calculate a standard deviation.
+			stddev = json.Number("0")
+		}
+
+		results[i] = &AggregatedResult{
+			RootSpanName: row.Tags["name"],
+			Average:      time.Duration(mustJSONFloat64(mean) * float64(time.Second)),
+			Min:          time.Duration(mustJSONFloat64(min) * float64(time.Second)),
+			Max:          time.Duration(mustJSONFloat64(max) * float64(time.Second)),
+			StdDev:       time.Duration(mustJSONFloat64(stddev) * float64(time.Second)),
+			Samples:      mustJSONInt64(count),
+		}
+	}
+	if len(result.Series) == 0 {
+		return nil, nil
+	}
+
+	n := 5
+	if n > len(result.Series) {
+		n = len(result.Series)
+	}
+
+	// Add in the N-slowest trace IDs for each span.
+	//
+	// TODO(slimsag): make N a pagination parameter instead.
+	result, err = in.executeOneQuery(fmt.Sprintf(`SELECT TOP("duration",%d),trace_id FROM spans GROUP BY "name"`, n))
+	if err != nil {
+		return nil, err
+	}
+	for rowIndex, row := range result.Series {
+		if row.Tags["name"] != results[rowIndex].RootSpanName {
+			panic("expectation violated") // never happens, just for sanity.
+		}
+		for _, fields := range row.Values {
+			for i, field := range fields {
+				switch row.Columns[i] {
+				case "trace_id":
+					id, err := ParseID(field.(string))
+					if err != nil {
+						panic(err) // never happens, just for sanity.
+					}
+					results[i].Slowest = append(results[i].Slowest, id)
+				}
+			}
+		}
+	}
+	return results, nil
+}
+
+func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	traces := make([]*Trace, 0)
-	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s' LIMIT %d", zeroID, in.tracesPerPage)
+	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s'", zeroID)
+
+	// Extends `rootSpansQuery` to add time range filter using the start/end values from `opts.Timespan`.
+	if opts.Timespan != (Timespan{}) {
+		start := opts.Timespan.S.UTC().Format(time.RFC3339Nano)
+		end := opts.Timespan.E.UTC().Format(time.RFC3339Nano)
+		rootSpansQuery += fmt.Sprintf(" AND time >= '%s' AND time <= '%s'", start, end)
+	}
+
+	// Extends `rootSpansQuery` to add a filter to include only those traces present in `opts.TraceIDs`.
+	traceIDsLen := len(opts.TraceIDs)
+	if traceIDsLen > 0 {
+		rootSpansQuery += " AND ("
+		for i, traceID := range opts.TraceIDs {
+			rootSpansQuery += fmt.Sprintf("trace_id = '%s'", traceID)
+			lastIteration := (i+1 == traceIDsLen)
+			if !lastIteration {
+				rootSpansQuery += " OR "
+			}
+		}
+		rootSpansQuery += ")"
+	} else { // Otherwise continue limiting the number of traces to be returned.
+		rootSpansQuery += fmt.Sprintf(" LIMIT %d", in.tracesPerPage)
+	}
+
 	rootSpansResult, err := in.executeOneQuery(rootSpansQuery)
 	if err != nil {
 		return nil, err
@@ -574,6 +726,8 @@ func spansFromRow(row influxDBModels.Row) ([]*Span, error) {
 
 			// Checks if current column is some span's ID, if so set to the span & continue with next field.
 			switch column {
+			case "name", "duration":
+				continue // aggregation
 			case "trace_id":
 				traceID, err := fieldToSpanID(field, errFieldType)
 				if err != nil {

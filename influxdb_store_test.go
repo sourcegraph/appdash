@@ -265,7 +265,7 @@ func TestInfluxDBStore(t *testing.T) {
 	}
 
 	// InfluxDBStore.Traces(...) tests.
-	gotTraces, err := store.Traces()
+	gotTraces, err := store.Traces(TracesOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %+v", err)
 	}
@@ -431,7 +431,7 @@ func benchmarkInfluxDBStoreTraces(b *testing.B, n int) {
 	}
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		if _, err := store.Traces(); err != nil {
+		if _, err := store.Traces(TracesOpts{}); err != nil {
 			b.Fatal(err)
 		}
 	}
