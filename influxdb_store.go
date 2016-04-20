@@ -253,16 +253,21 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 	if err != nil {
 		return nil, err
 	}
-	for i, row := range result.Series {
-		if row.Tags["name"] != results[i].RootSpanName {
+	for rowIndex, row := range result.Series {
+		if row.Tags["name"] != results[rowIndex].RootSpanName {
 			panic("expectation violated") // never happens, just for sanity.
 		}
-		for _, vals := range row.Values {
-			id, err := ParseID(vals[2].(string))
-			if err != nil {
-				panic(err) // never happens, just for sanity.
+		for _, fields := range row.Values {
+			for i, field := range fields {
+				switch row.Columns[i] {
+				case "trace_id":
+					id, err := ParseID(field.(string))
+					if err != nil {
+						panic(err) // never happens, just for sanity.
+					}
+					results[i].Slowest = append(results[i].Slowest, id)
+				}
 			}
-			results[i].Slowest = append(results[i].Slowest, id)
 		}
 	}
 	return results, nil
