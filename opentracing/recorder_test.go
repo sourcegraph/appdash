@@ -29,6 +29,7 @@ func TestOpentracingRecorder(t *testing.T) {
 			TraceID:      1,
 			SpanID:       2,
 			ParentSpanID: 3,
+			Sampled:      true,
 		},
 		Tags: map[string]interface{}{
 			"tag": 1,
@@ -40,7 +41,17 @@ func TestOpentracingRecorder(t *testing.T) {
 		Duration:  time.Duration(1),
 	}
 
+	unsampledRaw := basictracer.RawSpan{
+		Context: basictracer.Context{
+			TraceID:      1,
+			SpanID:       2,
+			ParentSpanID: 3,
+			Sampled:      false,
+		},
+	}
+
 	r.RecordSpan(raw)
+	r.RecordSpan(unsampledRaw)
 
 	tsAnnotations := marshalEvent(appdash.Timespan{raw.Start, raw.Start.Add(raw.Duration)})
 	want := []*wire.CollectPacket{
