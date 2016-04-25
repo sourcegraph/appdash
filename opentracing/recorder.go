@@ -41,6 +41,10 @@ func NewRecorder(collector appdash.Collector, opts Options) *Recorder {
 // RecordSpan converts a RawSpan into the Appdash representation of a span
 // and records it to the underlying collector.
 func (r *Recorder) RecordSpan(sp basictracer.RawSpan) {
+	if !sp.Sampled {
+		return
+	}
+
 	spanID := appdash.SpanID{
 		Span:   appdash.ID(uint64(sp.SpanID)),
 		Trace:  appdash.ID(uint64(sp.TraceID)),
