@@ -40,6 +40,8 @@ distribution. This means that if you want to modify the template data in `tracea
 
 After you're finished making changes to the templates, always run `go generate sourcegraph.com/sourcegraph/appdash/traceapp/tmpl` so that the `data_vfsdata.go` file is updated for normal Appdash users that aren't interested in modifying the template data.
 
+Dependencies are vendored using [govendor](https://github.com/kardianos/govendor).
+
 ## Components
 
 Appdash follows the design and naming conventions of
