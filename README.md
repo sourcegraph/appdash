@@ -40,7 +40,7 @@ distribution. This means that if you want to modify the template data in `tracea
 
 After you're finished making changes to the templates, always run `go generate sourcegraph.com/sourcegraph/appdash/traceapp/tmpl` so that the `data_vfsdata.go` file is updated for normal Appdash users that aren't interested in modifying the template data.
 
-Dependencies are vendored using [govendor](https://github.com/kardianos/govendor).
+Dependencies are vendored using [govendor](https://github.com/kardianos/govendor). Prior to updating InfluxDB dependencies [you should run gdm restore in that repository](https://github.com/influxdata/influxdb/blob/master/CONTRIBUTING.md#build-and-test).
 
 ## Components
 
