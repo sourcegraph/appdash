@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	influxDBClient "github.com/influxdata/influxdb/client"
@@ -56,6 +59,12 @@ type InfluxDBStore struct {
 	// When set to `testMode` - `testDBName` will be dropped and created, so newly database is ready for tests.
 	server        *influxDBServer.Server // InfluxDB API server.
 	tracesPerPage int                    // Number of traces per page.
+
+	batchMu         sync.Mutex
+	batchSizeBytes  int
+	batch           []influxDBClient.Point
+	flusherStopChan chan struct{}
+	log             *log.Logger
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
@@ -119,18 +128,66 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		Fields:      fields,
 		Time:        time.Now().UTC(),
 	}
+	pointSizeBytes := pointMemoryUsage(reflect.ValueOf(p))
 
-	// A single point represents one span.
-	pts := []influxDBClient.Point{*p}
+	in.batchMu.Lock()
+	defer in.batchMu.Unlock()
+
+	if in.batchSizeBytes+pointSizeBytes > in.config.MaxBatchSizeBytes {
+		if in.log != nil {
+			in.log.Println("InfluxDBStore: point batch entirely dropped (this should never happen, trace data will be missing)")
+			in.log.Printf("InfluxDBStore: batchSize:%v batchSizeBytes:%v + pointSize:%v\n", len(in.batch), in.batchSizeBytes, pointSizeBytes)
+		}
+		in.batch = nil
+		in.batchSizeBytes = 0
+		return ErrQueueDropped
+	}
+	in.batchSizeBytes += pointSizeBytes
+	in.batch = append(in.batch, *p)
+	return nil
+}
+
+// flush immediately sends all pending spans in the underlying batch to
+// InfluxDB.
+func (in *InfluxDBStore) flush() error {
+	// Grab what information we need and unlock quickly to avoid contention.
+	in.batchMu.Lock()
+	batch := in.batch
+	in.batch = nil
+	in.batchSizeBytes = 0
+	in.batchMu.Unlock()
+
+	if len(batch) == 0 {
+		return nil
+	}
+
+	// Write the batch to InfluxDB.
 	bps := influxDBClient.BatchPoints{
-		Points:   pts,
+		Points:   batch,
 		Database: in.dbName,
 	}
 	_, writeErr := in.con.Write(bps)
-	if writeErr != nil {
-		return writeErr
-	}
-	return nil
+	return writeErr
+}
+
+// flusher constantly flushes batches to InfluxDB at an interval.
+func (in *InfluxDBStore) flusher() {
+	in.flusherStopChan = make(chan struct{}, 1)
+	go func() {
+		for {
+			t := time.After(in.config.BatchFlushInterval)
+			select {
+			case <-t:
+				if err := in.flush(); err != nil {
+					if in.log != nil {
+						in.log.Println("Flush:", err)
+					}
+				}
+			case <-in.flusherStopChan:
+				return // stop
+			}
+		}
+	}()
 }
 
 func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
@@ -391,7 +448,12 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	return traces, nil
 }
 
+// Close flushes the last batch to InfluxDB and shuts down the InfluxDBStore.
 func (in *InfluxDBStore) Close() error {
+	close(in.flusherStopChan)
+	if err := in.flush(); err != nil {
+		return err
+	}
 	return in.server.Close()
 }
 
@@ -490,6 +552,8 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 
 	// TODO: let lib users decide `in.tracesPerPage` through InfluxDBConfig.
 	in.tracesPerPage = defaultTracesPerPage
+
+	go in.flusher()
 	return nil
 }
 
@@ -683,6 +747,25 @@ func addChildren(root *Trace, children []*Trace) error {
 	return nil
 }
 
+// pointMemoryUsage returns an estimate of the memory usage of the given *influxDBClient.Point
+// object in bytes.
+func pointMemoryUsage(v reflect.Value) int {
+	s := int(v.Type().Size())
+	switch v.Kind() {
+	case reflect.String:
+		s += v.Len()
+	case reflect.Ptr:
+		if !v.IsNil() {
+			s += pointMemoryUsage(reflect.Indirect(v))
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			s += pointMemoryUsage(v.MapIndex(key))
+		}
+	}
+	return s
+}
+
 // withoutEmptyFields filters `pf` and returns `pointFields` excluding those that have empty values.
 func withoutEmptyFields(pf pointFields) pointFields {
 	r := make(pointFields, 0)
@@ -800,6 +883,7 @@ func NewInfluxDBStore(config *InfluxDBConfig) (*InfluxDBStore, error) {
 	in := InfluxDBStore{
 		config:       config,
 		clientTarget: clientTarget,
+		log:          log.New(os.Stderr, "appdash: InfluxDBStore: ", log.LstdFlags),
 	}
 	if err := in.init(s); err != nil {
 		return nil, err
@@ -835,6 +919,9 @@ func NewInfluxDBConfig() (*InfluxDBConfig, error) {
 			Name:     "three_days_only",
 			Duration: "3d",
 		},
+
+		MaxBatchSizeBytes:  128 * 1024 * 1024, // 128 MB
+		BatchFlushInterval: 500 * time.Millisecond,
 	}, nil
 }
 
@@ -847,6 +934,23 @@ type InfluxDBConfig struct {
 
 	// LogOutput, if specified, controls where all InfluxDB logs are written to.
 	LogOutput io.Writer
+
+	// MaxBatchSizeBytes specifies the maximum size (estimated memory usage) in
+	// bytes that a batch may grow to become before being entirely dropped (and
+	// inherently, trace data lost). This prevents any potential memory leak in
+	// the case of an unresponsive or too slow InfluxDB server / pending flush
+	// operation.
+	//
+	// The default value used by NewInfluxDBConfig is 128*1024*1024 (128 MB).
+	MaxBatchSizeBytes int
+
+	// BatchFlushInterval specifies the minimum interval between flush calls by
+	// the background goroutine in order to flush point batches out to
+	// InfluxDB. That is, after each batch flush the goroutine will sleep for
+	// this amount of time to prevent CPU overutilization.
+	//
+	// The default value used by NewInfluxDBConfig is 500 * time.Millisecond.
+	BatchFlushInterval time.Duration
 }
 
 type InfluxDBRetentionPolicy struct {
