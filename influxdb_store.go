@@ -14,6 +14,7 @@ import (
 	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
 	influxDBModels "github.com/influxdata/influxdb/models"
 	influxDBErrors "github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/toml"
 )
 
 const (
@@ -487,7 +488,7 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 		return err
 	}
 
-	// TODO: let lib users decide `in.tracesPerPage` through InfluxDBStoreConfig.
+	// TODO: let lib users decide `in.tracesPerPage` through InfluxDBConfig.
 	in.tracesPerPage = defaultTracesPerPage
 	return nil
 }
@@ -772,28 +773,9 @@ func spansFromRow(row influxDBModels.Row) ([]*Span, error) {
 	return spans, nil
 }
 
-type InfluxDBRetentionPolicy struct {
-	Name     string // Name used to indentify this retention policy.
-	Duration string // How long InfluxDB keeps the data. Eg: "1h", "1d", "1w".
-}
-
-type InfluxDBStoreConfig struct {
-	AdminUser InfluxDBAdminUser
-	BuildInfo *influxDBServer.BuildInfo
-	DefaultRP InfluxDBRetentionPolicy
-	Mode      mode
-	Server    *influxDBServer.Config
-
-	// LogOutput, if specified, controls where all InfluxDB logs are written to.
-	LogOutput io.Writer
-}
-
-type InfluxDBAdminUser struct {
-	Username string
-	Password string
-}
-
-func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
+// NewInfluxDBStore returns a new InfluxDB-backed store. It starts an
+// in-process / embedded InfluxDB server.
+func NewInfluxDBStore(config *InfluxDBConfig) (*InfluxDBStore, error) {
 	s, err := influxDBServer.NewServer(config.Server, config.BuildInfo)
 	if err != nil {
 		return nil, err
@@ -825,4 +807,56 @@ func NewInfluxDBStore(config InfluxDBStoreConfig) (*InfluxDBStore, error) {
 		return nil, err
 	}
 	return &in, nil
+}
+
+// NewInfluxDBConfig returns a new InfluxDBConfig with the default values.
+func NewInfluxDBConfig() (*InfluxDBConfig, error) {
+	// Create the default InfluxDB server configuration.
+	server, err := influxDBServer.NewDemoConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Enables retention policies which will be executed within an interval of 30 minutes.
+	server.Retention.Enabled = true
+	server.Retention.CheckInterval = toml.Duration(30 * time.Minute)
+
+	return &InfluxDBConfig{
+		Server: server,
+
+		// Specify the branch as "appdash" just for identification purposes.
+		BuildInfo: &influxDBServer.BuildInfo{
+			Branch: "appdash",
+		},
+
+		// Create a retention policy which keeps data for only three days, this is
+		// because the Dashboard is hard-coded to displaying a 72hr timeline.
+		//
+		// Minimum duration time is 1 hour ("1h") - See: github.com/influxdata/influxdb/issues/5198
+		DefaultRP: InfluxDBRetentionPolicy{
+			Name:     "three_days_only",
+			Duration: "3d",
+		},
+	}, nil
+}
+
+type InfluxDBConfig struct {
+	AdminUser InfluxDBAdminUser
+	BuildInfo *influxDBServer.BuildInfo
+	DefaultRP InfluxDBRetentionPolicy
+	Mode      mode
+	Server    *influxDBServer.Config
+
+	// LogOutput, if specified, controls where all InfluxDB logs are written to.
+	LogOutput io.Writer
+}
+
+type InfluxDBRetentionPolicy struct {
+	Name     string // Name used to indentify this retention policy.
+	Duration string // How long InfluxDB keeps the data. Eg: "1h", "1d", "1w".
+}
+
+type InfluxDBAdminUser struct {
+	Username string
+	Password string
 }
