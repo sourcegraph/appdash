@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
 )
 
 func TestAddChildren(t *testing.T) {
@@ -543,23 +541,26 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, 
 }
 
 func newTestInfluxDBStore() (*InfluxDBStore, error) {
-	conf, err := influxDBServer.NewDemoConfig()
+	// Create a default InfluxDB configuration.
+	conf, err := NewInfluxDBConfig()
 	if err != nil {
 		return nil, err
 	}
-	conf.Data.QueryLogEnabled = false
-	conf.HTTPD.AuthEnabled = true
-	conf.HTTPD.LogEnabled = false
-	conf.ReportingDisabled = true
-	user := InfluxDBAdminUser{Username: "demo", Password: "demo"}
-	defaultRP := InfluxDBRetentionPolicy{Name: "one_hour_only", Duration: "1h"}
-	store, err := NewInfluxDBStore(InfluxDBStoreConfig{
-		AdminUser: user,
-		BuildInfo: &influxDBServer.BuildInfo{},
-		DefaultRP: defaultRP,
-		Mode:      testMode,
-		Server:    conf,
-	})
+
+	// Enable InfluxDB server HTTP basic auth.
+	conf.Server.HTTPD.AuthEnabled = true
+	conf.AdminUser = InfluxDBAdminUser{
+		Username: "demo",
+		Password: "demo",
+	}
+
+	// Disable metrics reporting because we're just a test.
+	conf.Server.ReportingDisabled = true
+
+	// Switch mode to testMode.
+	conf.Mode = testMode
+
+	store, err := NewInfluxDBStore(conf)
 	if err != nil {
 		return nil, err
 	}
