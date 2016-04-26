@@ -61,6 +61,9 @@ func main() {
 		BuildInfo: &influxDBServer.BuildInfo{},
 		DefaultRP: defaultRP,
 		Server:    conf,
+
+		// Configure where log output goes, if you desire:
+		//LogOutput: ioutil.Discard,
 	})
 	if err != nil {
 		log.Fatalf("failed to create influxdb store, error: %v", err)
