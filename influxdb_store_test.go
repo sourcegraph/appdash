@@ -246,6 +246,10 @@ func TestInfluxDBStore(t *testing.T) {
 		}
 	}
 
+	if err := store.flush(); err != nil {
+		t.Fatalf("flush:", err)
+	}
+
 	// InfluxDBStore.Trace(...) tests.
 	for _, trace := range traces {
 		gotTrace, err := store.Trace(trace.ID.Trace)
