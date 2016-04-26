@@ -34,16 +34,16 @@ func main() {
 	}
 
 	// If you do not want metrics to be reported (see: https://docs.influxdata.com/influxdb/v0.10/administration/config/#reporting-disabled-false) uncomment the following line:
-	//conf.ReportingDisabled = true
+	//conf.Server.ReportingDisabled = true
 
 	// Configure InfluxDB ports, if you desire:
-	//conf.Admin.BindAddress = ":8083"
-	//conf.BindAddress = ":8088"
-	//conf.CollectdInputs[0].BindAddress = "" // auto-chosen
-	//conf.GraphiteInputs[0].BindAddress = ":2003"
-	//conf.HTTPD.BindAddress = ":8086"
-	//conf.OpenTSDBInputs[0].BindAddress = ":4242"
-	//conf.UDPInputs[0].BindAddress = "" // auto-chosen
+	//conf.Server.Admin.BindAddress = ":8083"
+	//conf.Server.BindAddress = ":8088"
+	//conf.Server.CollectdInputs[0].BindAddress = "" // auto-chosen
+	//conf.Server.GraphiteInputs[0].BindAddress = ":2003"
+	//conf.Server.HTTPD.BindAddress = ":8086"
+	//conf.Server.OpenTSDBInputs[0].BindAddress = ":4242"
+	//conf.Server.UDPInputs[0].BindAddress = "" // auto-chosen
 
 	// Control where InfluxDB server logs are written to, if desired:
 	//conf.LogOutput = ioutil.Discard
