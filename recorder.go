@@ -3,6 +3,7 @@ package appdash
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -14,6 +15,10 @@ var (
 // A Recorder is associated with a span and records annotations on the
 // span by sending them to a collector.
 type Recorder struct {
+	// Logger, if non-nil, causes errors to be written to this logger directly
+	// instead of being manually checked via the Error method.
+	Logger *log.Logger
+
 	SpanID                   // the span ID that annotations are about
 	annotations []Annotation // SpanID's annotations to be collected
 	finished    bool         // finished is whether Recorder.Finish was called
@@ -115,8 +120,17 @@ func (r *Recorder) Errors() []error {
 }
 
 func (r *Recorder) error(method string, err error) {
-	as, _ := MarshalEvent(Log(fmt.Sprintf("Recorder.%s error: %s", method, err)))
+	logMsg := fmt.Sprintf("Recorder.%s error: %s", method, err)
+	as, _ := MarshalEvent(Log(logMsg))
 	r.failsafeAnnotation(as...)
+
+	// If we have a logger, we're not doing manual error checking but rather
+	// just logging all errors.
+	if r.Logger != nil {
+		r.Logger.Println(logMsg)
+		return
+	}
+
 	r.errorsMu.Lock()
 	r.errors = append(r.errors, err)
 	r.errorsMu.Unlock()
