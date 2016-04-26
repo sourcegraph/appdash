@@ -266,7 +266,7 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 					if err != nil {
 						panic(err) // never happens, just for sanity.
 					}
-					results[i].Slowest = append(results[i].Slowest, id)
+					results[rowIndex].Slowest = append(results[rowIndex].Slowest, id)
 				}
 			}
 		}
