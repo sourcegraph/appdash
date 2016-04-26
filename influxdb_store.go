@@ -48,14 +48,12 @@ var (
 type pointFields map[string]interface{}
 
 type InfluxDBStore struct {
-	adminUser    InfluxDBAdminUser       // InfluxDB server auth credentials.
-	con          *influxDBClient.Client  // InfluxDB client connection.
-	dbName       string                  // InfluxDB database name for this store.
-	defaultRP    InfluxDBRetentionPolicy // Default retention policy for `dbName`.
-	clientTarget *url.URL                // HTTP URL that the client should connect to,
+	config       *InfluxDBConfig
+	con          *influxDBClient.Client // InfluxDB client connection.
+	dbName       string                 // InfluxDB database name for this store.
+	clientTarget *url.URL               // HTTP URL that the client should connect to,
 
 	// When set to `testMode` - `testDBName` will be dropped and created, so newly database is ready for tests.
-	mode          mode                   // Used to check current mode(release or test).
 	server        *influxDBServer.Server // InfluxDB API server.
 	tracesPerPage int                    // Number of traces per page.
 }
@@ -400,14 +398,15 @@ func (in *InfluxDBStore) Close() error {
 func (in *InfluxDBStore) createDBIfNotExists() error {
 	q := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", in.dbName)
 
-	// If `in.defaultRP` info is provided, it's used to extend the query in order to create the database with
+	// If a default retention policy is provided, it's used to extend the query in order to create the database with
 	// a default retention policy.
-	if in.defaultRP.Duration != "" {
-		q = fmt.Sprintf("%s WITH DURATION %s", q, in.defaultRP.Duration)
+	rp := in.config.DefaultRP
+	if rp.Duration != "" {
+		q = fmt.Sprintf("%s WITH DURATION %s", q, rp.Duration)
 
 		// Retention policy name must be placed to the end of the query or it will be syntactically incorrect.
-		if in.defaultRP.Name != "" {
-			q = fmt.Sprintf("%s NAME %s", q, in.defaultRP.Name)
+		if rp.Name != "" {
+			q = fmt.Sprintf("%s NAME %s", q, rp.Name)
 		}
 	}
 
@@ -424,9 +423,10 @@ func (in *InfluxDBStore) createDBIfNotExists() error {
 
 // createAdminUserIfNotExists finds admin user(`in.adminUser`) if not found it's created.
 func (in *InfluxDBStore) createAdminUserIfNotExists() error {
-	userInfo, err := in.server.MetaClient.Authenticate(in.adminUser.Username, in.adminUser.Password)
+	admin := in.config.AdminUser
+	userInfo, err := in.server.MetaClient.Authenticate(admin.Username, admin.Password)
 	if err == influxDBErrors.ErrUserNotFound {
-		if _, createUserErr := in.server.MetaClient.CreateUser(in.adminUser.Username, in.adminUser.Password, true); createUserErr != nil {
+		if _, createUserErr := in.server.MetaClient.CreateUser(admin.Username, admin.Password, true); createUserErr != nil {
 			return createUserErr
 		}
 		return nil
@@ -464,8 +464,8 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	// We're currently using v1.
 	con, err := influxDBClient.NewClient(influxDBClient.Config{
 		URL:      *in.clientTarget,
-		Username: in.adminUser.Username,
-		Password: in.adminUser.Password,
+		Username: in.config.AdminUser.Username,
+		Password: in.config.AdminUser.Password,
 	})
 	if err != nil {
 		return err
@@ -474,7 +474,7 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	if err := in.createAdminUserIfNotExists(); err != nil {
 		return err
 	}
-	switch in.mode {
+	switch in.config.Mode {
 	case testMode:
 		if err := in.setUpTestMode(); err != nil {
 			return err
@@ -798,9 +798,7 @@ func NewInfluxDBStore(config *InfluxDBConfig) (*InfluxDBStore, error) {
 		return nil, err
 	}
 	in := InfluxDBStore{
-		adminUser:    config.AdminUser,
-		defaultRP:    config.DefaultRP,
-		mode:         config.Mode,
+		config:       config,
 		clientTarget: clientTarget,
 	}
 	if err := in.init(s); err != nil {
