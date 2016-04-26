@@ -134,7 +134,7 @@ type ChunkedCollector struct {
 // 	c := &ChunkedCollector{
 // 		Collector:    c,
 // 		MinInterval:  500 * time.Millisecond,
-// 		FlushTimeout: 50 * time.Millisecond,
+// 		FlushTimeout: 2 * time.Second,
 // 		MaxQueueSize: 32 * 1024 * 1024, // 32 MB
 // 		Log:          log.New(os.Stderr, "appdash: ", log.LstdFlags),
 // 	}
@@ -143,7 +143,7 @@ func NewChunkedCollector(c Collector) *ChunkedCollector {
 	return &ChunkedCollector{
 		Collector:    c,
 		MinInterval:  500 * time.Millisecond,
-		FlushTimeout: 50 * time.Millisecond,
+		FlushTimeout: 2 * time.Second,
 		MaxQueueSize: 32 * 1024 * 1024, // 32 MB
 		Log:          log.New(os.Stderr, "appdash: ", log.LstdFlags),
 	}
