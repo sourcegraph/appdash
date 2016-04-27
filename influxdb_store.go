@@ -448,7 +448,7 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 func (in *InfluxDBStore) Close() error {
 	close(in.flusherStopChan)
 	if err := in.flush(); err != nil {
-		return err
+		in.log.Println("Flush:", err)
 	}
 	return in.server.Close()
 }
