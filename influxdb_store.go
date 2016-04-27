@@ -258,8 +258,9 @@ func mustJSONInt64(x interface{}) int64 {
 // Aggregate implements the Aggregator interface.
 func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResult, error) {
 	// Find the mean (average), minimum, maximum, std. deviation, and count of
-	// all spans.
-	q := `SELECT MEAN("duration"),MIN("duration"),MAX("duration"),STDDEV("duration"),COUNT("duration") from spans`
+	// all spans. For details on how this works see the createContinuousQueries
+	// method.
+	q := `SELECT MEAN("mean"),MIN("min"),MAX("max"),MEAN("stddev"),SUM("count") from downsampled_spans`
 	q += fmt.Sprintf(
 		" WHERE time >= '%s' AND time <= '%s'",
 		time.Now().Add(start).UTC().Format(time.RFC3339Nano),
@@ -303,7 +304,8 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 	// Add in the N-slowest trace IDs for each span.
 	//
 	// TODO(slimsag): make N a pagination parameter instead.
-	result, err = in.executeOneQuery(fmt.Sprintf(`SELECT TOP("duration",%d),trace_id FROM spans GROUP BY "name"`, n))
+	q = fmt.Sprintf(`SELECT TOP("top",%d),trace_id FROM nslowest_spans GROUP BY "name"`, n)
+	result, err = in.executeOneQuery(q)
 	if err != nil {
 		return nil, err
 	}
@@ -469,14 +471,48 @@ func (in *InfluxDBStore) createDBIfNotExists() error {
 	}
 
 	// If there are no errors, query execution was successfully - either DB was created or already exists.
-	response, err := in.con.Query(influxDBClient.Query{Command: q})
-	if err != nil {
+	return in.executeQueryNoResults(q)
+}
+
+// createContinuousQueries creates the continuous queries used by Appdash. If
+// they already exist, no error is returned.
+func (in *InfluxDBStore) createContinuousQueries() error {
+	// The 'GROUP BY' (or 'bucket', if you will) size is calculated as the
+	// maximum number of samples we want over 72hr. The more samples we have,
+	// the more precise the stats on the Dashboard are and the slower query
+	// time is. 5k data points on a 2015 MBP takes about 500ms to calculate
+	// our statistics currently, thus:
+	//
+	// 	5000 points / (72h * 60m) == 1.157 (points per minute) == 1 point in 69s == GROUP BY 1m
+	//
+	// Because we're downsampling we can downsample different methods (mean,
+	// min, max, etc) for the most accurate query later on. Thus we have a
+	// mapping of aggregated -> real query likeso:
+	//
+	// 	| Dashboard      | Aggregated         | Real Query     | Description                     |
+	// 	|----------------|--------------------|----------------|---------------------------------|
+	// 	| Average        | MEAN("duration")   | MEAN("mean")   | average of all averages         |
+	// 	| Min            | MIN("duration")    | MIN("min")     | minimum of all minimums         |
+	// 	| Max            | MAX("duration")    | MAX("max")     | maximum of all maximums         |
+	// 	| Std. Deviation | STDDEV("duration") | MEAN("stddev") | average of all std. deviations  |
+	// 	| Timespans      | COUNT("duration")  | SUM("count")   | total counted durations (spans) |
+	//
+	q := fmt.Sprintf(`CREATE CONTINUOUS QUERY cq_downsampled_spans_1m ON %s RESAMPLE EVERY 1m BEGIN SELECT MEAN("duration"),MIN("duration"),MAX("duration"),STDDEV("duration"),COUNT("duration") INTO downsampled_spans FROM spans GROUP BY time(1m), "name" END`, in.dbName)
+	if err := in.executeQueryNoResults(q); err != nil {
 		return err
 	}
-	if err := response.Error(); err != nil {
-		return err
-	}
-	return nil
+
+	// The above query doesn't give us a reference to the trace IDs because
+	// InfluxDB doesn't yet support mixing aggregate and non-aggregate queries
+	// together. To workaround this, we create a secondary CQ. This CQ
+	// downsamples the N-slowest span IDs by name so that we can efficiently
+	// link to them from the dashboard.
+	//
+	// Note: This actually only gives us 1 N-slowest trace over the GROUP BY
+	// timeframe (1 N-slowest trace over 1m), but this is good enough in
+	// general.
+	q = fmt.Sprintf(`CREATE CONTINUOUS QUERY cq_nslowest_spans_1m ON %s RESAMPLE EVERY 1m BEGIN SELECT TOP("duration",1),trace_id,span_id,parent_id INTO nslowest_spans FROM spans GROUP BY time(1m), "name" END`, in.dbName)
+	return in.executeQueryNoResults(q)
 }
 
 // createAdminUserIfNotExists finds admin user(`in.adminUser`) if not found it's created.
@@ -516,6 +552,22 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 	return &response.Results[0], nil
 }
 
+// executeQueryNoResults is a helper function which executes a single query and
+// expects no results. If any error occurs, it is returned.
+func (in *InfluxDBStore) executeQueryNoResults(command string) error {
+	response, err := in.con.Query(influxDBClient.Query{
+		Command:  command,
+		Database: in.dbName,
+	})
+	if err != nil {
+		return err
+	}
+	if err := response.Error(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	in.server = server
 	// TODO: Upgrade to client v2, see: github.com/influxdata/influxdb/blob/master/client/v2/client.go
@@ -545,6 +597,9 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	if err := in.createDBIfNotExists(); err != nil {
 		return err
 	}
+	if err := in.createContinuousQueries(); err != nil {
+		return err
+	}
 
 	// TODO: let lib users decide `in.tracesPerPage` through InfluxDBConfig.
 	in.tracesPerPage = defaultTracesPerPage
@@ -560,16 +615,7 @@ func (in *InfluxDBStore) setUpReleaseMode() error {
 
 func (in *InfluxDBStore) setUpTestMode() error {
 	in.dbName = testDBName
-	response, err := in.con.Query(influxDBClient.Query{
-		Command: fmt.Sprintf("DROP DATABASE IF EXISTS %s", testDBName),
-	})
-	if err != nil {
-		return err
-	}
-	if err := response.Error(); err != nil {
-		return err
-	}
-	return nil
+	return in.executeQueryNoResults(fmt.Sprintf("DROP DATABASE IF EXISTS %s", in.dbName))
 }
 
 func annotationsFromEvents(a Annotations) (Annotations, error) {
