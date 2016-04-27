@@ -12,6 +12,9 @@
 package traceapp
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	htmpl "html/template"
@@ -85,6 +88,23 @@ func (a *App) serveRoot(w http.ResponseWriter, r *http.Request) error {
 func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 	v := mux.Vars(r)
 
+	if permalink := r.URL.Query().Get("permalink"); permalink != "" {
+		// If the user specified a permalink, then decode it directly into a
+		// trace structure and place it into storage for viewing.
+		gz, err := gzip.NewReader(base64.NewDecoder(base64.RawURLEncoding, strings.NewReader(permalink)))
+		if err != nil {
+			return err
+		}
+		var upload *appdash.Trace
+		if err := json.NewDecoder(gz).Decode(&upload); err != nil {
+			return err
+		}
+		if err := a.uploadTraces(upload); err != nil {
+			return err
+		}
+	}
+
+	// Look in the store for the trace.
 	traceID, err := appdash.ParseID(v["Trace"])
 	if err != nil {
 		return err
@@ -138,17 +158,43 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// The JSON trace is the human-readable trace form for exporting.
+	jsonTrace, err := json.MarshalIndent([]*appdash.Trace{trace}, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// The permalink of the trace is literally the JSON encoded trace gzipped & base64 encoded.
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(base64.NewEncoder(base64.RawURLEncoding, &buf))
+	err = json.NewEncoder(gz).Encode(trace)
+	if err != nil {
+		return err
+	}
+	if err := gz.Close(); err != nil {
+		return err
+	}
+	permalink, err := a.URLToTrace(trace.ID.Trace)
+	if err != nil {
+		return err
+	}
+	permalink.RawQuery = "permalink=" + buf.String()
+
 	return a.renderTemplate(w, r, "trace.html", http.StatusOK, &struct {
 		TemplateCommon
 		Trace             *appdash.Trace
 		ShowTimelineChart bool
 		VisData           []timelineItem
 		ProfileURL        string
+		Permalink         string
+		JSONTrace         string
 	}{
 		Trace:             trace,
 		ShowTimelineChart: showTimelineChart,
 		VisData:           visData,
 		ProfileURL:        profile.String(),
+		Permalink:         permalink.String(),
+		JSONTrace:         string(jsonTrace),
 	})
 }
 
@@ -239,11 +285,15 @@ func (a *App) serveTraceUpload(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	return a.uploadTraces(traces...)
+}
 
+// uploadTraces uploads literal traces into the storage system for later viewing.
+func (a *App) uploadTraces(traces ...*appdash.Trace) error {
 	// Collect the unmarshaled traces, ignoring any previously existing ones (i.e.
 	// ones that would collide / be merged together).
 	for _, trace := range traces {
-		_, err = a.Store.Trace(trace.Span.ID.Trace)
+		_, err := a.Store.Trace(trace.Span.ID.Trace)
 		if err != appdash.ErrTraceNotFound {
 			// The trace collides with an existing trace, ignore it.
 			continue

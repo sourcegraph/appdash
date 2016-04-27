@@ -14,14 +14,13 @@
 <h1>Trace {{.Trace.ID.Trace}}
   {{if not .Trace.ID.Parent}}
     <span style="font-size: 12px; vertical-align: middle;">
-      <!--
-        Note the [] brackets around the trace JSON string. We add these as we
-        support exporting/importing multiple traces as a json array type. The
-        Trace.String method just gives us a single JSON-encoded Trace object,
-        but using arrays across the entire system simplifies the encoding and
-        decoding processes slightly.
-      -->
-      <span id="copy-json-clip">(<a id="copy-json" data-clipboard-text="[{{.Trace.String}}]">Copy as JSON</a>)</span>
+      (
+      <span id="copy-permalink-clip">
+        <a id="copy-permalink" data-clipboard-text="{{.BaseURL}}{{.Permalink}}" href="{{.BaseURL}}{{.Permalink}}">Permalink</a>
+      </span>
+      |
+      <span id="copy-json-clip"><a id="copy-json" data-clipboard-text="{{.JSONTrace}}">Export as JSON</a></span>
+      )
     </span>
     {{end}}
 </h1>
@@ -47,6 +46,17 @@
         $("#copy-json-clip").hide();
         $("#copy-json-text").collapse("show");
         $("#copy-json-text .textarea").focus().select();
+      });
+    });
+
+    // No fallback is needed for the permalink (because the link itself is the fallback).
+    var permalinkClient = new ZeroClipboard( document.getElementById("copy-permalink") );
+    permalinkClient.on("ready", function( readyEvent ) {
+      $("#copy-permalink").click(function(e) {
+        e.preventDefault();
+      });
+      permalinkClient.on("aftercopy", function( event ) {
+        alert("Permalink copied to clipboard.\n\nThe URL itself contains the entire trace, only share it with friends!");
       });
     });
   })();
