@@ -456,7 +456,7 @@ func (in *InfluxDBStore) Close() error {
 }
 
 func (in *InfluxDBStore) createDBIfNotExists() error {
-	q := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", in.dbName)
+	q := fmt.Sprintf("CREATE DATABASE %s", in.dbName)
 
 	// If a default retention policy is provided, it's used to extend the query in order to create the database with
 	// a default retention policy.
