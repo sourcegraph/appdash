@@ -134,10 +134,8 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	defer in.batchMu.Unlock()
 
 	if in.batchSizeBytes+pointSizeBytes > in.config.MaxBatchSizeBytes {
-		if in.log != nil {
-			in.log.Println("InfluxDBStore: point batch entirely dropped (this should never happen, trace data will be missing)")
-			in.log.Printf("InfluxDBStore: batchSize:%v batchSizeBytes:%v + pointSize:%v\n", len(in.batch), in.batchSizeBytes, pointSizeBytes)
-		}
+		in.log.Println("InfluxDBStore: point batch entirely dropped (this should never happen, trace data will be missing)")
+		in.log.Printf("InfluxDBStore: batchSize:%v batchSizeBytes:%v + pointSize:%v\n", len(in.batch), in.batchSizeBytes, pointSizeBytes)
 		in.batch = nil
 		in.batchSizeBytes = 0
 		return ErrQueueDropped
@@ -179,9 +177,7 @@ func (in *InfluxDBStore) flusher() {
 			select {
 			case <-t:
 				if err := in.flush(); err != nil {
-					if in.log != nil {
-						in.log.Println("Flush:", err)
-					}
+					in.log.Println("Flush:", err)
 				}
 			case <-in.flusherStopChan:
 				return // stop
