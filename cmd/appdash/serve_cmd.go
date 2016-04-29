@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -32,6 +33,7 @@ func init() {
 // ServeCmd is the command for running Appdash in server mode, where a
 // collector server and the web UI are hosted.
 type ServeCmd struct {
+	URL           string `long:"url" description:"URL which Appdash is being hosted at" default:"http://localhost:7700"`
 	CollectorAddr string `long:"collector" description:"collector listen address" default:":7701"`
 	HTTPAddr      string `long:"http" description:"HTTP listen address" default:":7700"`
 	SampleData    bool   `long:"sample-data" description:"add sample data"`
@@ -94,7 +96,14 @@ func (c *ServeCmd) Execute(args []string) error {
 		}
 	}
 
-	app := traceapp.New(nil)
+	url, err := url.Parse(c.URL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	app, err := traceapp.New(nil, url)
+	if err != nil {
+		log.Fatal(err)
+	}
 	app.Store = Store
 	app.Queryer = Queryer
 
