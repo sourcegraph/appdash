@@ -50,6 +50,7 @@ func sampleData(c appdash.Collector) error {
 			SQL:        "SELECT * FROM table_name;",
 			Tag:        fmt.Sprintf("fakeTag%d", rand.Intn(10)),
 		})
+		traceRec.Finish()
 
 		// We'll split the trace into N (3-7) spans (i.e. "N operations") each with
 		// a random duration of time adding up to the length of the trace.
@@ -88,6 +89,7 @@ func sampleData(c appdash.Collector) error {
 			}
 
 			lastSpanID = spanID
+			rec.Finish()
 		}
 	}
 	return nil
