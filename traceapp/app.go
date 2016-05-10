@@ -64,7 +64,7 @@ func New(r *Router, base *url.URL) (*App, error) {
 
 	// Validate the base URL and use the root path if none was specified.
 	if base.Scheme == "" || base.Host == "" {
-		return nil, fmt.Errorf("appdash: base URL must contain both scheme and port, found %q", base.String())
+		return nil, fmt.Errorf("appdash: base URL must contain both scheme and host, found %q", base.String())
 	}
 	if base.Path == "" {
 		base.Path = "/"
