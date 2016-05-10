@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"sourcegraph.com/sourcegraph/appdash"
@@ -49,7 +50,14 @@ func main() {
 	// on HTTP port 8700 will bring us to the web UI, displaying information
 	// about this specific web-server (another alternative would be to connect
 	// to a centralized Appdash collection server).
-	tapp := traceapp.New(nil)
+	url, err := url.Parse("http://localhost:8700")
+	if err != nil {
+		log.Fatal(err)
+	}
+	tapp, err := traceapp.New(nil, url)
+	if err != nil {
+		log.Fatal(err)
+	}
 	tapp.Store = store
 	tapp.Queryer = memStore
 	log.Println("Appdash web UI running on HTTP :8700")

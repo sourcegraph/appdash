@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -32,6 +33,7 @@ func init() {
 // ServeCmd is the command for running Appdash in server mode, where a
 // collector server and the web UI are hosted.
 type ServeCmd struct {
+	URL           string `long:"url" description:"URL which Appdash is being hosted at (e.g. http://localhost:7700)"`
 	CollectorAddr string `long:"collector" description:"collector listen address" default:":7701"`
 	HTTPAddr      string `long:"http" description:"HTTP listen address" default:":7700"`
 	SampleData    bool   `long:"sample-data" description:"add sample data"`
@@ -94,7 +96,14 @@ func (c *ServeCmd) Execute(args []string) error {
 		}
 	}
 
-	app := traceapp.New(nil)
+	url, err := c.urlOrDefault()
+	if err != nil {
+		log.Fatal(err)
+	}
+	app, err := traceapp.New(nil, url)
+	if err != nil {
+		log.Fatal(err)
+	}
 	app.Store = Store
 	app.Queryer = Queryer
 
@@ -162,6 +171,29 @@ func (c *ServeCmd) Execute(args []string) error {
 
 	log.Printf("appdash HTTP server listening on %s", c.HTTPAddr)
 	return http.ListenAndServe(c.HTTPAddr, h)
+}
+
+// urlOrDefault returns c.URL if non-empty, otherwise it returns c.HTTPAddr
+// with localhost" as the default host (if not specified in c.HTTPAddr).
+func (c *ServeCmd) urlOrDefault() (*url.URL, error) {
+	// Parse c.URL and return it if non-empty.
+	u, err := url.Parse(c.URL)
+	if err != nil {
+		return nil, err
+	}
+	if c.URL != "" {
+		return u, nil
+	}
+
+	// Parse c.HTTPAddr and use a default host if not specified.
+	addr, err := url.Parse("http://" + c.HTTPAddr)
+	if err != nil {
+		return nil, err
+	}
+	if addr.Host == "" {
+		addr.Host = "localhost"
+	}
+	return addr, nil
 }
 
 func newBasicAuthHandler(user, passwd string, h http.Handler) http.Handler {

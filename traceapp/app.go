@@ -17,6 +17,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	htmpl "html/template"
 	"io/ioutil"
 	"log"
@@ -45,17 +46,37 @@ type App struct {
 	tmplLock sync.Mutex
 	tmpls    map[string]*htmpl.Template
 
-	Log *log.Logger
+	Log     *log.Logger
+	baseURL *url.URL
 }
 
 // New creates a new application handler. If r is nil, a new router is
 // created.
-func New(r *Router) *App {
+//
+// The given base URL is the absolute base URL under which traceapp is being
+// served, e.g., "https://appdash.mysite.com" or "https://mysite.com/appdash".
+// The base URL must contain a scheme and host, or else an error will be
+// returned.
+func New(r *Router, base *url.URL) (*App, error) {
 	if r == nil {
 		r = NewRouter(nil)
 	}
 
-	app := &App{Router: r, Log: log.New(os.Stderr, "appdash: ", log.LstdFlags)}
+	// Validate the base URL and use the root path if none was specified.
+	cpy := *base
+	base = &cpy
+	if base.Scheme == "" || base.Host == "" {
+		return nil, fmt.Errorf("appdash: base URL must contain both scheme and host, found %q", base.String())
+	}
+	if base.Path == "" {
+		base.Path = "/"
+	}
+
+	app := &App{
+		Router:  r,
+		Log:     log.New(os.Stderr, "appdash: ", log.LstdFlags),
+		baseURL: base,
+	}
 
 	r.r.Get(RootRoute).Handler(handlerFunc(app.serveRoot))
 	r.r.Get(TraceRoute).Handler(handlerFunc(app.serveTrace))
@@ -71,7 +92,7 @@ func New(r *Router) *App {
 	// Static file serving.
 	r.r.Get(StaticRoute).Handler(http.StripPrefix("/static/", http.FileServer(static.Data)))
 
-	return app
+	return app, nil
 }
 
 // ServeHTTP implements http.Handler.

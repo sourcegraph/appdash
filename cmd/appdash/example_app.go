@@ -66,7 +66,10 @@ func (c *DemoCmd) Execute(args []string) error {
 	log.Printf("Appdash web UI running at %s", appdashURL)
 
 	// Start the web UI in a separate goroutine.
-	tapp := traceapp.New(nil)
+	tapp, err := traceapp.New(nil, appdashURL)
+	if err != nil {
+		log.Fatal(err)
+	}
 	tapp.Store = store
 	tapp.Queryer = store
 	go func() {
