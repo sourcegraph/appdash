@@ -411,24 +411,25 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 
 	// Cache to keep track all trace children of root traces to be returned.
 	children := make(map[ID][]*Trace, 0) // Span.ID.Trace -> []*Trace
+	if len(childrenSpansResult.Series) > 0 {
+		childrenSpans, err := spansFromRow(childrenSpansResult.Series[0])
+		if err != nil {
+			return nil, err
+		}
 
-	childrenSpans, err := spansFromRow(childrenSpansResult.Series[0])
-	if err != nil {
-		return nil, err
-	}
-
-	// Iterates over `childrenSpans` to fill `children` cache.
-	for _, span := range childrenSpans {
-		trace, present := tracesCache[span.ID.Trace]
-		if !present { // Root trace not added.
-			return nil, errors.New("parent not found")
-		} else { // Root trace already added, append `child` to `children` for later usage.
-			child := &Trace{Span: *span}
-			t, found := children[trace.ID.Trace]
-			if !found {
-				children[trace.ID.Trace] = []*Trace{child}
-			} else {
-				children[trace.ID.Trace] = append(t, child)
+		// Iterates over `childrenSpans` to fill `children` cache.
+		for _, span := range childrenSpans {
+			trace, present := tracesCache[span.ID.Trace]
+			if !present { // Root trace not added.
+				return nil, errors.New("parent not found")
+			} else { // Root trace already added, append `child` to `children` for later usage.
+				child := &Trace{Span: *span}
+				t, found := children[trace.ID.Trace]
+				if !found {
+					children[trace.ID.Trace] = []*Trace{child}
+				} else {
+					children[trace.ID.Trace] = append(t, child)
+				}
 			}
 		}
 	}
