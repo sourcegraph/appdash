@@ -68,14 +68,6 @@ type InfluxDBStore struct {
 }
 
 func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
-	// trace_id, span_id & parent_id are mostly used as part of the "where" part on queries so
-	// to have performant queries these are set as tags(InfluxDB indexes tags).
-	tags := map[string]string{
-		"trace_id":  id.Trace.String(),
-		"span_id":   id.Span.String(),
-		"parent_id": id.Parent.String(),
-	}
-
 	// Find the start and end time of the span.
 	var events []Event
 	if err := UnmarshalEvents(anns, &events); err != nil {
@@ -98,14 +90,18 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	}
 
 	// Annotations `anns` are set as fields(InfluxDB does not index fields).
-	fields := make(map[string]interface{}, len(anns))
+	fields := make(map[string]interface{}, len(anns)+3)
+	fields["trace_id"] = id.Trace.String()
+	fields["span_id"] = id.Span.String()
+	fields["parent_id"] = id.Parent.String()
 	for _, ann := range anns {
 		fields[ann.Key] = string(ann.Value)
 	}
 
 	// If we have span name and duration, set them as a tag and field.
+	var tags map[string]string
 	if foundItems == 2 {
-		tags["name"] = name
+		tags = map[string]string{"name": name}
 		fields["duration"] = float64(duration) / float64(time.Second)
 	}
 
