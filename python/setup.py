@@ -10,4 +10,5 @@ setup(
     author_email = 'hi@sourcegraph.com',
     url = 'https://sourcegraph.com/sourcegraph/appdash',
     packages = ['appdash'],
+    install_requires = ['basictracer'],
 )
