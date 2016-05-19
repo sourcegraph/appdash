@@ -1,37 +1,41 @@
+import event
+import itertools
 from spanid import SpanID, Annotation
+from basictracer import BasicTracer, SpanRecorder
 
-class AppdashRecorder(object):
+def create_new_tracer(collector, sampler=None):
+    """create_new_tracer creates a new appdash opentracing tracer using an Appdash collector.
+    """
+    return BasicTracer(recorder=AppdashRecorder(collector), sampler=sampler)
+
+class AppdashRecorder(SpanRecorder):
+    """AppdashRecorder collects and records spans to a remote Appdash collector.
+    """
     def __init__(self, collector):
         self._collector = collector
 
     def record_span(self, span):
         if not span.context.sampled:
             return
-        annotations = []
         span_id = SpanID()
         span_id.trace = span.context.trace_id
-        span_id.span = span.context.span
-        span_id.parent = span.context.parent_span_id
+        span_id.span = span.context.span_id
+        if span.context.parent_id is not None:
+            span_id.parent = span.context.parent_id
 
         # It might not be right to build a list, maybe send events one at a time.
-        annotations.append(MarshalEvent(SpanNameEvent(span.operation_name)))
+        self._collector.collect(span_id,
+                *event.MarshalEvent(event.SpanNameEvent(span.operation_name)))
 
-        approx_endtime = span.context.start_time + span.duration
-        annotations.append(MarshalEvent(
-            TimespanEvent(span.context.start_time, approx_endtime)))
+        approx_endtime = span.start_time + span.duration
+        self._collector.collect(span_id,
+                *event.MarshalEvent(event.TimespanEvent(span.start_time, approx_endtime)))
 
-        for key in span.tags:
-            annotations.append(Annotation(key, span.tag[key])
+        if span.tags is not None:
+            for key in span.tags:
+                self._collector.collect(span_id, Annotation(key, span.tags[key]))
 
-        for key in span.context.baggage_items:
-            annotations.append(Annotation(key, span.contex.baggage_items[value])
+        if span.context.baggage is not None:
+            for key in span.context.baggage:
+                self._collector.collect(span_id, Annotation(key, span.contex.baggage[key]))
 
-        self._collector.collect(span_id, events)
-
-
-class AppdashTracer(BasicTracer):
-
-    def __init__(self, collector, sampler=None):
-        self._recorder = AppdashRecorder(collector)
-        super(AppdashTracer, self).__init__(recorder=self._recorder,
-                                            sampler=sampler)

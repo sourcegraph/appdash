@@ -73,7 +73,7 @@ class TimespanEvent:
         self.start = timeString(start)
         self.end = timeString(end)
 
-    def marshal(self)
+    def marshal(self):
         return {"Span.Start": self.start, "Span.End": self.end}
 
 # SQLEvent is an SQL query event with send and receive times, as well as the
