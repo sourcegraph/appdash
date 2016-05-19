@@ -23,7 +23,6 @@ class AppdashRecorder(SpanRecorder):
         if span.context.parent_id is not None:
             span_id.parent = span.context.parent_id
 
-        # It might not be right to build a list, maybe send events one at a time.
         self._collector.collect(span_id,
                 *event.MarshalEvent(event.SpanNameEvent(span.operation_name)))
 
