@@ -566,8 +566,6 @@ func (in *InfluxDBStore) executeQueryNoResults(command string) error {
 
 func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 	in.server = server
-	// TODO: Upgrade to client v2, see: github.com/influxdata/influxdb/blob/master/client/v2/client.go
-	// We're currently using v1.
 	con, err := influxDBClient.NewHTTPClient(influxDBClient.HTTPConfig{
 		Addr:     in.clientTarget.String(),
 		Username: in.config.AdminUser.Username,
