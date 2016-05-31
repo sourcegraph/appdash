@@ -186,12 +186,16 @@ func (c *ServeCmd) urlOrDefault() (*url.URL, error) {
 	}
 
 	// Parse c.HTTPAddr and use a default host if not specified.
-	addr, err := url.Parse("http://" + c.HTTPAddr)
+	host, port, err := net.SplitHostPort(c.HTTPAddr)
 	if err != nil {
 		return nil, err
 	}
-	if addr.Host == "" {
-		addr.Host = "localhost"
+	if host == "" {
+		host = "localhost"
+	}
+	addr := &url.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s:%s", host, port),
 	}
 	return addr, nil
 }
