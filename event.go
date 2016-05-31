@@ -36,7 +36,7 @@ type EventUnmarshaler interface {
 	UnmarshalEvent(Annotations) (Event, error)
 }
 
-const schemaPrefix = "_schema:"
+const SchemaPrefix = "_schema:"
 
 // MarshalEvent marshals an event into annotations.
 func MarshalEvent(e Event) (Annotations, error) {
@@ -46,7 +46,7 @@ func MarshalEvent(e Event) (Annotations, error) {
 		if err != nil {
 			return nil, err
 		}
-		as = append(as, Annotation{Key: schemaPrefix + e.Schema()})
+		as = append(as, Annotation{Key: SchemaPrefix + e.Schema()})
 		return as, nil
 	}
 
@@ -54,7 +54,7 @@ func MarshalEvent(e Event) (Annotations, error) {
 	flattenValue("", reflect.ValueOf(e), func(k, v string) {
 		as = append(as, Annotation{Key: k, Value: []byte(v)})
 	})
-	as = append(as, Annotation{Key: schemaPrefix + e.Schema()})
+	as = append(as, Annotation{Key: SchemaPrefix + e.Schema()})
 	return as, nil
 }
 
