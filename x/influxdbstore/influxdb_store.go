@@ -1,4 +1,4 @@
-package appdash
+package influxdbstore
 
 import (
 	"encoding/json"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"sourcegraph.com/sourcegraph/appdash"
 
 	influxDBClient "github.com/influxdata/influxdb/client/v2"
 	influxDBServer "github.com/influxdata/influxdb/cmd/influxd/run"
@@ -38,13 +40,13 @@ const (
 
 // Compile-time "implements" check.
 var _ interface {
-	Store
-	Queryer
+	appdash.Store
+	appdash.Queryer
 } = (*InfluxDBStore)(nil)
 
 var (
 	errMultipleSeries        = errors.New("unexpected multiple series")
-	zeroID            string = ID(0).String() // zeroID is ID's zero value as string.
+	zeroID            string = appdash.ID(0).String() // zeroID is ID's zero value as string.
 )
 
 // pointFields -> influxDBClient.Point.Fields
@@ -67,10 +69,10 @@ type InfluxDBStore struct {
 	log             *log.Logger
 }
 
-func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
+func (in *InfluxDBStore) Collect(id appdash.SpanID, anns ...appdash.Annotation) error {
 	// Find the start and end time of the span.
-	var events []Event
-	if err := UnmarshalEvents(anns, &events); err != nil {
+	var events []appdash.Event
+	if err := appdash.UnmarshalEvents(anns, &events); err != nil {
 		return err
 	}
 	var (
@@ -80,10 +82,10 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 	)
 	for _, ev := range events {
 		switch v := ev.(type) {
-		case spanName:
+		case appdash.SpanNameEvent:
 			foundItems++
 			name = v.Name
-		case TimespanEvent:
+		case appdash.TimespanEvent:
 			foundItems++
 			duration = v.End().Sub(v.Start())
 		}
@@ -137,7 +139,7 @@ func (in *InfluxDBStore) Collect(id SpanID, anns ...Annotation) error {
 		in.log.Printf("InfluxDBStore: batchSize:%v batchSizeBytes:%v + pointSize:%v\n", len(in.batch), in.batchSizeBytes, pointSizeBytes)
 		in.batch = nil
 		in.batchSizeBytes = 0
-		return ErrQueueDropped
+		return appdash.ErrQueueDropped
 	}
 	in.batchSizeBytes += pointSizeBytes
 	in.batch = append(in.batch, p)
@@ -187,15 +189,15 @@ func (in *InfluxDBStore) flusher() {
 	}()
 }
 
-func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
-	trace := &Trace{}
+func (in *InfluxDBStore) Trace(id appdash.ID) (*appdash.Trace, error) {
+	trace := &appdash.Trace{}
 	q := fmt.Sprintf("SELECT * FROM spans WHERE trace_id='%s'", id)
 	result, err := in.executeOneQuery(q)
 	if err != nil {
 		return nil, err
 	}
 	if len(result.Series) == 0 {
-		return nil, ErrTraceNotFound
+		return nil, appdash.ErrTraceNotFound
 	}
 
 	// Expecting only one element, which contains the queried spans information.
@@ -205,7 +207,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 
 	var (
 		rootSpanSet bool
-		children    []*Trace
+		children    []*appdash.Trace
 	)
 
 	spans, err := spansFromRow(result.Series[0])
@@ -226,7 +228,7 @@ func (in *InfluxDBStore) Trace(id ID) (*Trace, error) {
 			trace.Span = *span
 			rootSpanSet = true
 		} else { // children span.
-			children = append(children, &Trace{Span: *span})
+			children = append(children, &appdash.Trace{Span: *span})
 		}
 	}
 	if err := addChildren(trace, children); err != nil {
@@ -254,7 +256,7 @@ func mustJSONInt64(x interface{}) int64 {
 }
 
 // Aggregate implements the Aggregator interface.
-func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResult, error) {
+func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*appdash.AggregatedResult, error) {
 	// Find the mean (average), minimum, maximum, std. deviation, and count of
 	// all spans. For details on how this works see the createContinuousQueries
 	// method.
@@ -271,7 +273,7 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 	}
 
 	// Populate the results.
-	results := make([]*AggregatedResult, len(result.Series))
+	results := make([]*appdash.AggregatedResult, len(result.Series))
 	for i, row := range result.Series {
 		v := row.Values[0]
 		mean, min, max, stddev, count := v[1], v[2], v[3], v[4], v[5]
@@ -281,7 +283,7 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 			stddev = json.Number("0")
 		}
 
-		results[i] = &AggregatedResult{
+		results[i] = &appdash.AggregatedResult{
 			RootSpanName: row.Tags["name"],
 			Average:      time.Duration(mustJSONFloat64(mean) * float64(time.Second)),
 			Min:          time.Duration(mustJSONFloat64(min) * float64(time.Second)),
@@ -315,7 +317,7 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 			for i, field := range fields {
 				switch row.Columns[i] {
 				case "trace_id":
-					id, err := ParseID(field.(string))
+					id, err := appdash.ParseID(field.(string))
 					if err != nil {
 						panic(err) // never happens, just for sanity.
 					}
@@ -327,12 +329,12 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*AggregatedResul
 	return results, nil
 }
 
-func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
-	traces := make([]*Trace, 0)
+func (in *InfluxDBStore) Traces(opts appdash.TracesOpts) ([]*appdash.Trace, error) {
+	traces := make([]*appdash.Trace, 0)
 	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s'", zeroID)
 
 	// Extends `rootSpansQuery` to add time range filter using the start/end values from `opts.Timespan`.
-	if opts.Timespan != (Timespan{}) {
+	if opts.Timespan != (appdash.Timespan{}) {
 		start := opts.Timespan.S.UTC().Format(time.RFC3339Nano)
 		end := opts.Timespan.E.UTC().Format(time.RFC3339Nano)
 		rootSpansQuery += fmt.Sprintf(" AND time >= '%s' AND time <= '%s'", start, end)
@@ -368,7 +370,7 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	}
 
 	// Cache to keep track of traces to be returned.
-	tracesCache := make(map[ID]*Trace, 0)
+	tracesCache := make(map[appdash.ID]*appdash.Trace, 0)
 
 	rootSpans, err := spansFromRow(rootSpansResult.Series[0])
 	if err != nil {
@@ -378,7 +380,7 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	for _, span := range rootSpans {
 		_, present := tracesCache[span.ID.Trace]
 		if !present {
-			tracesCache[span.ID.Trace] = &Trace{Span: *span}
+			tracesCache[span.ID.Trace] = &appdash.Trace{Span: *span}
 		} else {
 			return nil, errors.New("duplicated root span")
 		}
@@ -405,7 +407,7 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 	}
 
 	// Cache to keep track all trace children of root traces to be returned.
-	children := make(map[ID][]*Trace, 0) // Span.ID.Trace -> []*Trace
+	children := make(map[appdash.ID][]*appdash.Trace, 0) // Span.ID.Trace -> []*Trace
 	if len(childrenSpansResult.Series) > 0 {
 		childrenSpans, err := spansFromRow(childrenSpansResult.Series[0])
 		if err != nil {
@@ -418,10 +420,10 @@ func (in *InfluxDBStore) Traces(opts TracesOpts) ([]*Trace, error) {
 			if !present { // Root trace not added.
 				return nil, errors.New("parent not found")
 			} else { // Root trace already added, append `child` to `children` for later usage.
-				child := &Trace{Span: *span}
+				child := &appdash.Trace{Span: *span}
 				t, found := children[trace.ID.Trace]
 				if !found {
-					children[trace.ID.Trace] = []*Trace{child}
+					children[trace.ID.Trace] = []*appdash.Trace{child}
 				} else {
 					children[trace.ID.Trace] = append(t, child)
 				}
@@ -612,16 +614,16 @@ func (in *InfluxDBStore) setUpTestMode() error {
 	return in.executeQueryNoResults(fmt.Sprintf("DROP DATABASE IF EXISTS %s", in.dbName))
 }
 
-func annotationsFromEvents(a Annotations) (Annotations, error) {
+func annotationsFromEvents(a appdash.Annotations) (appdash.Annotations, error) {
 	var (
-		annotations Annotations
-		events      []Event
+		annotations appdash.Annotations
+		events      []appdash.Event
 	)
-	if err := UnmarshalEvents(a, &events); err != nil {
+	if err := appdash.UnmarshalEvents(a, &events); err != nil {
 		return nil, err
 	}
 	for _, e := range events {
-		anns, err := MarshalEvent(e)
+		anns, err := appdash.MarshalEvent(e)
 		if err != nil {
 			return nil, err
 		}
@@ -631,12 +633,12 @@ func annotationsFromEvents(a Annotations) (Annotations, error) {
 }
 
 // fieldToSpanID converts given field to span ID.
-func fieldToSpanID(field interface{}, errFieldType error) (*ID, error) {
+func fieldToSpanID(field interface{}, errFieldType error) (*appdash.ID, error) {
 	f, ok := field.(string)
 	if !ok {
 		return nil, errFieldType
 	}
-	id, err := ParseID(f)
+	id, err := appdash.ParseID(f)
 	if err != nil {
 		return nil, err
 	}
@@ -645,8 +647,8 @@ func fieldToSpanID(field interface{}, errFieldType error) (*ID, error) {
 
 // filterSchemas returns `Annotations` which contains items taken from `anns`.
 // Some items from `anns` won't be included(those which were not saved by `InfluxDBStore.Collect(...)`).
-func filterSchemas(anns []Annotation) Annotations {
-	var annotations Annotations
+func filterSchemas(anns []appdash.Annotation) appdash.Annotations {
+	var annotations appdash.Annotations
 
 	// Finds an annotation which: `Annotation.Key` is equal to `schemasFieldName`.
 	schemasAnn := findSchemasAnnotation(anns)
@@ -657,8 +659,8 @@ func filterSchemas(anns []Annotation) Annotations {
 
 	// Iterates over `anns` to check if each annotation should be included or not to the `annotations` be returned.
 	for _, a := range anns {
-		if strings.HasPrefix(a.Key, schemaPrefix) { // Check if current annotation is schema related one.
-			schema := a.Key[len(schemaPrefix):] // Excludes the schema prefix part.
+		if strings.HasPrefix(a.Key, appdash.SchemaPrefix) { // Check if current annotation is schema related one.
+			schema := a.Key[len(appdash.SchemaPrefix):] // Excludes the schema prefix part.
 
 			// Checks if `schema` exists in `schemas`, if so means current annotation was saved by `InfluxDBStore.Collect(...)`.
 			// If does not exist it means current annotation is empty on `InfluxDBStore.dbName` but still included within a query result.
@@ -688,7 +690,7 @@ func schemaExists(schema string, schemas []string) bool {
 }
 
 // findSchemasAnnotation finds & returns an annotation which: `Annotation.Key` is equal to `schemasFieldName`.
-func findSchemasAnnotation(anns []Annotation) *Annotation {
+func findSchemasAnnotation(anns []appdash.Annotation) *appdash.Annotation {
 	for _, a := range anns {
 		if a.Key == schemasFieldName {
 			return &a
@@ -698,9 +700,9 @@ func findSchemasAnnotation(anns []Annotation) *Annotation {
 }
 
 // findTraceParent walks through `rootTrace` to look for `child`; once found — it's trace parent is returned.
-func findTraceParent(root, child *Trace) *Trace {
-	var walkToParent func(root, child *Trace) *Trace
-	walkToParent = func(root, child *Trace) *Trace {
+func findTraceParent(root, child *appdash.Trace) *appdash.Trace {
+	var walkToParent func(root, child *appdash.Trace) *appdash.Trace
+	walkToParent = func(root, child *appdash.Trace) *appdash.Trace {
 		if root.ID.Span == child.ID.Parent {
 			return root
 		}
@@ -719,20 +721,20 @@ func findTraceParent(root, child *Trace) *Trace {
 
 // schemasFromAnnotations returns a string(a set of schemas(strings) separated by `schemasFieldSeparator`) - eg. "HTTPClient,HTTPServer,name".
 // Each schema is extracted from each `Annotation.Key` from `anns`.
-func schemasFromAnnotations(anns []Annotation) string {
+func schemasFromAnnotations(anns []appdash.Annotation) string {
 	var schemas []string
 	for _, ann := range anns {
 
 		// Checks if current annotation is schema related.
-		if strings.HasPrefix(ann.Key, schemaPrefix) {
-			schemas = append(schemas, ann.Key[len(schemaPrefix):])
+		if strings.HasPrefix(ann.Key, appdash.SchemaPrefix) {
+			schemas = append(schemas, ann.Key[len(appdash.SchemaPrefix):])
 		}
 	}
 	return strings.Join(schemas, schemasFieldSeparator)
 }
 
 // addChildren adds `children` to `root`; each child is appended to it's trace parent.
-func addChildren(root *Trace, children []*Trace) error {
+func addChildren(root *appdash.Trace, children []*appdash.Trace) error {
 	var (
 		addFn   func()                 // Handles children appending to it's trace parent.
 		retries int    = len(children) // Maximum number of retries to add `children` elements to `root`.
@@ -744,7 +746,7 @@ func addChildren(root *Trace, children []*Trace) error {
 			t := findTraceParent(root, child)
 			if t != nil { // Trace found.
 				if t.Sub == nil { // Empty sub-traces slice.
-					t.Sub = []*Trace{child}
+					t.Sub = []*appdash.Trace{child}
 				} else { // Non-empty sub-traces slice.
 					t.Sub = append(t.Sub, child)
 				}
@@ -822,13 +824,13 @@ func withoutEmptyFields(pf pointFields) pointFields {
 }
 
 // spansFromRow rebuilds spans from given InfluxDB row.
-func spansFromRow(row influxDBModels.Row) ([]*Span, error) {
-	var spans []*Span
+func spansFromRow(row influxDBModels.Row) ([]*appdash.Span, error) {
+	var spans []*appdash.Span
 
 	// Iterates through all `row.Values`, each represents a set of single span information(ids and annotations).
 	for _, fields := range row.Values {
-		span := &Span{
-			Annotations: make(Annotations, 0),
+		span := &appdash.Span{
+			Annotations: make(appdash.Annotations, 0),
 		}
 
 		// Iterates over fields, each field might be a span's annotation value or span's ID(either a TraceID, SpanID or ParentID).
@@ -877,7 +879,7 @@ func spansFromRow(row influxDBModels.Row) ([]*Span, error) {
 			default:
 				return nil, errFieldType
 			}
-			span.Annotations = append(span.Annotations, Annotation{
+			span.Annotations = append(span.Annotations, appdash.Annotation{
 				Key:   column,
 				Value: value,
 			})

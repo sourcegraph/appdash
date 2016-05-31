@@ -1,44 +1,46 @@
-package appdash
+package influxdbstore
 
 import (
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"sourcegraph.com/sourcegraph/appdash"
 )
 
 func TestAddChildren(t *testing.T) {
-	root := &Trace{Span: Span{ID: SpanID{1, 100, 0}}}
-	want := &Trace{
+	root := &appdash.Trace{Span: appdash.Span{ID: appdash.SpanID{1, 100, 0}}}
+	want := &appdash.Trace{
 		Span: root.Span,
-		Sub: []*Trace{
-			&Trace{
-				Span: Span{ID: SpanID{1, 101, 100}},
-				Sub: []*Trace{
-					&Trace{
-						Span: Span{ID: SpanID{1, 1011, 101}},
-						Sub: []*Trace{
-							&Trace{
-								Span: Span{ID: SpanID{1, 10111, 1011}},
+		Sub: []*appdash.Trace{
+			&appdash.Trace{
+				Span: appdash.Span{ID: appdash.SpanID{1, 101, 100}},
+				Sub: []*appdash.Trace{
+					&appdash.Trace{
+						Span: appdash.Span{ID: appdash.SpanID{1, 1011, 101}},
+						Sub: []*appdash.Trace{
+							&appdash.Trace{
+								Span: appdash.Span{ID: appdash.SpanID{1, 10111, 1011}},
 							},
-							&Trace{
-								Span: Span{ID: SpanID{1, 10112, 1011}},
+							&appdash.Trace{
+								Span: appdash.Span{ID: appdash.SpanID{1, 10112, 1011}},
 							},
 						},
 					},
-					&Trace{
-						Span: Span{ID: SpanID{1, 1012, 101}},
+					&appdash.Trace{
+						Span: appdash.Span{ID: appdash.SpanID{1, 1012, 101}},
 					},
 				},
 			},
-			&Trace{
-				Span: Span{ID: SpanID{1, 102, 100}},
-				Sub: []*Trace{
-					&Trace{
-						Span: Span{ID: SpanID{1, 1021, 102}},
-						Sub: []*Trace{
-							&Trace{
-								Span: Span{ID: SpanID{1, 10211, 1021}},
+			&appdash.Trace{
+				Span: appdash.Span{ID: appdash.SpanID{1, 102, 100}},
+				Sub: []*appdash.Trace{
+					&appdash.Trace{
+						Span: appdash.Span{ID: appdash.SpanID{1, 1021, 102}},
+						Sub: []*appdash.Trace{
+							&appdash.Trace{
+								Span: appdash.Span{ID: appdash.SpanID{1, 10211, 1021}},
 							},
 						},
 					},
@@ -47,18 +49,18 @@ func TestAddChildren(t *testing.T) {
 		},
 	}
 	var (
-		children      []*Trace
-		sortSubTraces func(root *Trace)
-		subTraces     func(root *Trace, traces []*Trace) []*Trace
+		children      []*appdash.Trace
+		sortSubTraces func(root *appdash.Trace)
+		subTraces     func(root *appdash.Trace, traces []*appdash.Trace) []*appdash.Trace
 	)
-	subTraces = func(root *Trace, traces []*Trace) []*Trace {
+	subTraces = func(root *appdash.Trace, traces []*appdash.Trace) []*appdash.Trace {
 		traces = append(traces, root.Sub...)
 		for _, sub := range root.Sub {
 			subTraces(sub, traces)
 		}
 		return traces
 	}
-	sortSubTraces = func(root *Trace) {
+	sortSubTraces = func(root *appdash.Trace) {
 		sort.Sort(tracesByIDSpan(root.Sub))
 		for _, sub := range root.Sub {
 			sortSubTraces(sub)
@@ -75,10 +77,10 @@ func TestAddChildren(t *testing.T) {
 }
 
 func TestSchemasFromAnnotations(t *testing.T) {
-	anns := []Annotation{
-		Annotation{Key: schemaPrefix + "HTTPClient"},
-		Annotation{Key: schemaPrefix + "HTTPServer"},
-		Annotation{Key: schemaPrefix + "name"},
+	anns := []appdash.Annotation{
+		appdash.Annotation{Key: appdash.SchemaPrefix + "HTTPClient"},
+		appdash.Annotation{Key: appdash.SchemaPrefix + "HTTPServer"},
+		appdash.Annotation{Key: appdash.SchemaPrefix + "name"},
 	}
 	got := sortSchemas(schemasFromAnnotations(anns))
 	want := sortSchemas("HTTPClient,HTTPServer,name")
@@ -88,36 +90,36 @@ func TestSchemasFromAnnotations(t *testing.T) {
 }
 
 func TestFindTraceParent(t *testing.T) {
-	trace := Trace{
-		Span: Span{
-			ID: SpanID{Trace: 1, Span: 100, Parent: 0},
+	trace := appdash.Trace{
+		Span: appdash.Span{
+			ID: appdash.SpanID{Trace: 1, Span: 100, Parent: 0},
 		},
-		Sub: []*Trace{
-			&Trace{
-				Span: Span{
-					ID: SpanID{Trace: 1, Span: 11, Parent: 100},
+		Sub: []*appdash.Trace{
+			&appdash.Trace{
+				Span: appdash.Span{
+					ID: appdash.SpanID{Trace: 1, Span: 11, Parent: 100},
 				},
-				Sub: []*Trace{
-					&Trace{
-						Span: Span{
-							ID: SpanID{Trace: 1, Span: 111, Parent: 11},
+				Sub: []*appdash.Trace{
+					&appdash.Trace{
+						Span: appdash.Span{
+							ID: appdash.SpanID{Trace: 1, Span: 111, Parent: 11},
 						},
-						Sub: []*Trace{
-							&Trace{
-								Span: Span{
-									ID: SpanID{Trace: 1, Span: 1111, Parent: 111},
+						Sub: []*appdash.Trace{
+							&appdash.Trace{
+								Span: appdash.Span{
+									ID: appdash.SpanID{Trace: 1, Span: 1111, Parent: 111},
 								},
 							},
 						},
 					},
-					&Trace{
-						Span: Span{
-							ID: SpanID{Trace: 1, Span: 112, Parent: 11},
+					&appdash.Trace{
+						Span: appdash.Span{
+							ID: appdash.SpanID{Trace: 1, Span: 112, Parent: 11},
 						},
-						Sub: []*Trace{
-							&Trace{
-								Span: Span{
-									ID: SpanID{Trace: 1, Span: 1112, Parent: 112},
+						Sub: []*appdash.Trace{
+							&appdash.Trace{
+								Span: appdash.Span{
+									ID: appdash.SpanID{Trace: 1, Span: 1112, Parent: 112},
 								},
 							},
 						},
@@ -127,11 +129,11 @@ func TestFindTraceParent(t *testing.T) {
 		},
 	}
 	cases := []struct {
-		Parent *Trace
-		Child  *Trace
+		Parent *appdash.Trace
+		Child  *appdash.Trace
 	}{
 		{nil, &trace},
-		{nil, &Trace{}},
+		{nil, &appdash.Trace{}},
 		{&trace, trace.Sub[0]},
 		{trace.Sub[0], trace.Sub[0].Sub[0]},
 		{trace.Sub[0], trace.Sub[0].Sub[1]},
@@ -156,40 +158,40 @@ func TestInfluxDBStore(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	traces := []*Trace{
-		&Trace{
-			Span: Span{
-				ID: SpanID{1, 100, 0},
-				Annotations: Annotations{
-					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: "_schema:name"},
+	traces := []*appdash.Trace{
+		&appdash.Trace{
+			Span: appdash.Span{
+				ID: appdash.SpanID{1, 100, 0},
+				Annotations: appdash.Annotations{
+					appdash.Annotation{Key: "Name", Value: []byte("/")},
+					appdash.Annotation{Key: "_schema:name"},
 				},
 			},
-			Sub: []*Trace{
-				&Trace{
-					Span: Span{
-						ID: SpanID{Trace: 1, Span: 11, Parent: 100},
-						Annotations: Annotations{
-							Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
-							Annotation{Key: "_schema:name"},
+			Sub: []*appdash.Trace{
+				&appdash.Trace{
+					Span: appdash.Span{
+						ID: appdash.SpanID{Trace: 1, Span: 11, Parent: 100},
+						Annotations: appdash.Annotations{
+							appdash.Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
+							appdash.Annotation{Key: "_schema:name"},
 						},
 					},
-					Sub: []*Trace{
-						&Trace{
-							Span: Span{
-								ID: SpanID{Trace: 1, Span: 111, Parent: 11},
-								Annotations: Annotations{
-									Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
-									Annotation{Key: "_schema:name"},
+					Sub: []*appdash.Trace{
+						&appdash.Trace{
+							Span: appdash.Span{
+								ID: appdash.SpanID{Trace: 1, Span: 111, Parent: 11},
+								Annotations: appdash.Annotations{
+									appdash.Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
+									appdash.Annotation{Key: "_schema:name"},
 								},
 							},
-							Sub: []*Trace{
-								&Trace{
-									Span: Span{
-										ID: SpanID{Trace: 1, Span: 1111, Parent: 111},
-										Annotations: Annotations{
-											Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
-											Annotation{Key: "_schema:name"},
+							Sub: []*appdash.Trace{
+								&appdash.Trace{
+									Span: appdash.Span{
+										ID: appdash.SpanID{Trace: 1, Span: 1111, Parent: 111},
+										Annotations: appdash.Annotations{
+											appdash.Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
+											appdash.Annotation{Key: "_schema:name"},
 										},
 									},
 								},
@@ -199,30 +201,30 @@ func TestInfluxDBStore(t *testing.T) {
 				},
 			},
 		},
-		&Trace{
-			Span: Span{
-				ID: SpanID{2, 200, 0},
-				Annotations: Annotations{
-					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: "_schema:name"},
+		&appdash.Trace{
+			Span: appdash.Span{
+				ID: appdash.SpanID{2, 200, 0},
+				Annotations: appdash.Annotations{
+					appdash.Annotation{Key: "Name", Value: []byte("/")},
+					appdash.Annotation{Key: "_schema:name"},
 				},
 			},
 		},
 	}
 
 	var (
-		keys           []string = []string{"time", "schemas"} // InfluxDB related annotations keys.
-		mustCollect    func(trace *Trace)
-		mustCollectAll func(trace *Trace)
-		tracesMap      map[ID]*Trace = make(map[ID]*Trace, 0) // Trace ID -> Trace.
+		keys           = []string{"time", "schemas"} // InfluxDB related annotations keys.
+		mustCollect    func(trace *appdash.Trace)
+		mustCollectAll func(trace *appdash.Trace)
+		tracesMap      = make(map[appdash.ID]*appdash.Trace, 0) // Trace ID -> Trace.
 	)
 
-	mustCollect = func(trace *Trace) {
+	mustCollect = func(trace *appdash.Trace) {
 		if err := store.Collect(trace.Span.ID, trace.Span.Annotations...); err != nil {
 			t.Fatalf("unexpected error: %+v", err)
 		}
 	}
-	mustCollectAll = func(trace *Trace) {
+	mustCollectAll = func(trace *appdash.Trace) {
 		for _, sub := range trace.Sub {
 			mustCollect(sub)
 			mustCollectAll(sub)
@@ -238,7 +240,7 @@ func TestInfluxDBStore(t *testing.T) {
 		mustCollectAll(trace)
 	}
 
-	mustBeEqual := func(gotTrace, want *Trace) {
+	mustBeEqual := func(gotTrace, want *appdash.Trace) {
 		removeInfluxDBAnnotations(gotTrace, keys)
 		sortAnnotations(*gotTrace, *want)
 		if !reflect.DeepEqual(gotTrace, want) {
@@ -267,7 +269,7 @@ func TestInfluxDBStore(t *testing.T) {
 	}
 
 	// InfluxDBStore.Traces(...) tests.
-	gotTraces, err := store.Traces(TracesOpts{})
+	gotTraces, err := store.Traces(appdash.TracesOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %+v", err)
 	}
@@ -295,24 +297,24 @@ func benchmarkInfluxDBStoreCollect(b *testing.B, n int) {
 		}
 	}()
 	b.StartTimer()
-	var x ID
+	var x appdash.ID
 	for n := 0; n < b.N; n++ {
 		for c := 0; c < n; c++ {
 			x++
-			spanID := SpanID{x, x + 1, 0}
-			anns := []Annotations{
-				Annotations{
-					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
-					Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
+			spanID := appdash.SpanID{x, x + 1, 0}
+			anns := []appdash.Annotations{
+				appdash.Annotations{
+					appdash.Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+					appdash.Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
+					appdash.Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 				},
-				Annotations{
-					Annotation{Key: "Name", Value: []byte("/")},
+				appdash.Annotations{
+					appdash.Annotation{Key: "Name", Value: []byte("/")},
 				},
-				Annotations{
-					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
-					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
-					Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+				appdash.Annotations{
+					appdash.Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
+					appdash.Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
+					appdash.Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
 				},
 			}
 			for ann := 0; ann < len(anns); ann++ {
@@ -349,24 +351,24 @@ func BenchmarkInfluxDBStoreCollectParallel(b *testing.B) {
 		}
 	}()
 	b.StartTimer()
-	var x ID
+	var x appdash.ID
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			x++
-			spanID := SpanID{x, x + 1, 0}
-			anns := []Annotations{
-				Annotations{
-					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
-					Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
+			spanID := appdash.SpanID{x, x + 1, 0}
+			anns := []appdash.Annotations{
+				appdash.Annotations{
+					appdash.Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+					appdash.Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
+					appdash.Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 				},
-				Annotations{
-					Annotation{Key: "Name", Value: []byte("/")},
+				appdash.Annotations{
+					appdash.Annotation{Key: "Name", Value: []byte("/")},
 				},
-				Annotations{
-					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
-					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
-					Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+				appdash.Annotations{
+					appdash.Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
+					appdash.Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
+					appdash.Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
 				},
 			}
 			for ann := 0; ann < len(anns); ann++ {
@@ -433,7 +435,7 @@ func benchmarkInfluxDBStoreTraces(b *testing.B, n int) {
 	}
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		if _, err := store.Traces(TracesOpts{}); err != nil {
+		if _, err := store.Traces(appdash.TracesOpts{}); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -444,18 +446,18 @@ func BenchmarkInfluxDBStoreTracesDefaultPerPage(b *testing.B) {
 	benchmarkInfluxDBStoreTraces(b, defaultTracesPerPage)
 }
 
-func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, error) {
+func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*appdash.Trace, error) {
 	var (
-		mustCollect    func(trace *Trace) error
-		mustCollectAll func(trace *Trace) error
+		mustCollect    func(trace *appdash.Trace) error
+		mustCollectAll func(trace *appdash.Trace) error
 	)
-	mustCollect = func(trace *Trace) error {
+	mustCollect = func(trace *appdash.Trace) error {
 		if err := store.Collect(trace.Span.ID, trace.Span.Annotations...); err != nil {
 			return err
 		}
 		return nil
 	}
-	mustCollectAll = func(trace *Trace) error {
+	mustCollectAll = func(trace *appdash.Trace) error {
 		if err := mustCollect(trace); err != nil {
 			return err
 		}
@@ -471,62 +473,62 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*Trace, 
 	}
 	var (
 		// Initial ID's for traces & sub-traces.
-		x      ID    = ID(0)     // Root.
-		s0     ID    = ID(n)     // Sub 0.
-		s1     ID    = ID(n * 2) // Sub 1.
-		s2     ID    = ID(n * 3) // Sub 2.
-		s3     ID    = ID(n * 4) // Sub 3.
-		ids    []*ID = []*ID{&x, &s0, &s1, &s2, &s3}
-		traces []*Trace
+		x      = appdash.ID(0)     // Root.
+		s0     = appdash.ID(n)     // Sub 0.
+		s1     = appdash.ID(n * 2) // Sub 1.
+		s2     = appdash.ID(n * 3) // Sub 2.
+		s3     = appdash.ID(n * 4) // Sub 3.
+		ids    = []*appdash.ID{&x, &s0, &s1, &s2, &s3}
+		traces []*appdash.Trace
 	)
 	for c := 0; c < n; c++ {
 		for _, id := range ids {
 			*id++
 		}
-		trace := Trace{
-			Span: Span{
-				ID: SpanID{x, s0, 0},
-				Annotations: []Annotation{
-					Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-					Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
-					Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
-					Annotation{Key: "Name", Value: []byte("/")},
-					Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
-					Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
-					Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+		trace := appdash.Trace{
+			Span: appdash.Span{
+				ID: appdash.SpanID{x, s0, 0},
+				Annotations: []appdash.Annotation{
+					appdash.Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+					appdash.Annotation{Key: "Server.Request.Headers.User-Agent", Value: []byte("Go-http-client/1.1")},
+					appdash.Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
+					appdash.Annotation{Key: "Name", Value: []byte("/")},
+					appdash.Annotation{Key: "Client.Response.Headers.Content-Type", Value: []byte("text/plain; charset=utf-8")},
+					appdash.Annotation{Key: "Client.Response.Headers.Content-Length", Value: []byte("16")},
+					appdash.Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
 				},
 			},
-			Sub: []*Trace{
-				&Trace{
-					Span: Span{
-						ID: SpanID{Trace: x, Span: s1, Parent: s0},
-						Annotations: Annotations{
-							Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
-							Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-							Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
-							Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
+			Sub: []*appdash.Trace{
+				&appdash.Trace{
+					Span: appdash.Span{
+						ID: appdash.SpanID{Trace: x, Span: s1, Parent: s0},
+						Annotations: appdash.Annotations{
+							appdash.Annotation{Key: "Name", Value: []byte("localhost:8699/endpoint")},
+							appdash.Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+							appdash.Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+							appdash.Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 						},
 					},
-					Sub: []*Trace{
-						&Trace{
-							Span: Span{
-								ID: SpanID{Trace: x, Span: s2, Parent: s1},
-								Annotations: Annotations{
-									Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
-									Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-									Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
-									Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
+					Sub: []*appdash.Trace{
+						&appdash.Trace{
+							Span: appdash.Span{
+								ID: appdash.SpanID{Trace: x, Span: s2, Parent: s1},
+								Annotations: appdash.Annotations{
+									appdash.Annotation{Key: "Name", Value: []byte("localhost:8699/sub1")},
+									appdash.Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+									appdash.Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+									appdash.Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 								},
 							},
-							Sub: []*Trace{
-								&Trace{
-									Span: Span{
-										ID: SpanID{Trace: x, Span: s3, Parent: s2},
-										Annotations: Annotations{
-											Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
-											Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
-											Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
-											Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
+							Sub: []*appdash.Trace{
+								&appdash.Trace{
+									Span: appdash.Span{
+										ID: appdash.SpanID{Trace: x, Span: s3, Parent: s2},
+										Annotations: appdash.Annotations{
+											appdash.Annotation{Key: "Name", Value: []byte("localhost:8699/sub2")},
+											appdash.Annotation{Key: "Server.Request.Method", Value: []byte("GET")},
+											appdash.Annotation{Key: "_schema:HTTPClient", Value: []byte("")},
+											appdash.Annotation{Key: "_schema:HTTPServer", Value: []byte("")},
 										},
 									},
 								},
@@ -572,12 +574,12 @@ func newTestInfluxDBStore() (*InfluxDBStore, error) {
 }
 
 // removeInfluxDBAnnotations removes annotations from `root` and it's subtraces; only those annotations that have as key present on `keys` will be removed.
-func removeInfluxDBAnnotations(root *Trace, keys []string) {
+func removeInfluxDBAnnotations(root *appdash.Trace, keys []string) {
 	var (
-		walk     func(root *Trace)
-		removeFn func(trace *Trace, keys []string)
+		walk     func(root *appdash.Trace)
+		removeFn func(trace *appdash.Trace, keys []string)
 	)
-	removeFn = func(trace *Trace, keys []string) {
+	removeFn = func(trace *appdash.Trace, keys []string) {
 		for i := len(trace.Annotations) - 1; i >= 0; i-- {
 			for _, k := range keys {
 				if trace.Annotations[i].Key == k {
@@ -587,7 +589,7 @@ func removeInfluxDBAnnotations(root *Trace, keys []string) {
 			}
 		}
 	}
-	walk = func(root *Trace) {
+	walk = func(root *appdash.Trace) {
 		removeFn(root, keys)
 		for _, sub := range root.Sub {
 			removeFn(sub, keys)
@@ -605,9 +607,9 @@ func sortSchemas(s string) string {
 	return strings.Join(schemas, schemasFieldSeparator)
 }
 
-func sortAnnotations(traces ...Trace) {
-	var walk func(t *Trace)
-	walk = func(t *Trace) {
+func sortAnnotations(traces ...appdash.Trace) {
+	var walk func(t *appdash.Trace)
+	walk = func(t *appdash.Trace) {
 		sort.Sort(annotations(t.Span.Annotations))
 		for _, s := range t.Sub {
 			sort.Sort(annotations(s.Span.Annotations))
@@ -624,3 +626,15 @@ type bySchemaText []string
 func (bs bySchemaText) Len() int           { return len(bs) }
 func (bs bySchemaText) Swap(i, j int)      { bs[i], bs[j] = bs[j], bs[i] }
 func (bs bySchemaText) Less(i, j int) bool { return bs[i] < bs[j] }
+
+type tracesByIDSpan []*appdash.Trace
+
+func (t tracesByIDSpan) Len() int           { return len(t) }
+func (t tracesByIDSpan) Less(i, j int) bool { return t[i].Span.ID.Span < t[j].Span.ID.Span }
+func (t tracesByIDSpan) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+
+type annotations appdash.Annotations
+
+func (a annotations) Len() int           { return len(a) }
+func (a annotations) Less(i, j int) bool { return a[i].Key < a[j].Key }
+func (a annotations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
