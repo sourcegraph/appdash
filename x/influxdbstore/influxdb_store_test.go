@@ -446,7 +446,7 @@ func BenchmarkInfluxDBStoreTracesDefaultPerPage(b *testing.B) {
 	benchmarkInfluxDBStoreTraces(b, defaultTracesPerPage)
 }
 
-func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*appdash.Trace, error) {
+func benchmarkInfluxDBStoreCreateTraces(store *Store, n int) ([]*appdash.Trace, error) {
 	var (
 		mustCollect    func(trace *appdash.Trace) error
 		mustCollectAll func(trace *appdash.Trace) error
@@ -546,16 +546,16 @@ func benchmarkInfluxDBStoreCreateTraces(store *InfluxDBStore, n int) ([]*appdash
 	return traces, nil
 }
 
-func newTestInfluxDBStore() (*InfluxDBStore, error) {
+func newTestInfluxDBStore() (*Store, error) {
 	// Create a default InfluxDB configuration.
-	conf, err := NewInfluxDBConfig()
+	conf, err := NewConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	// Enable InfluxDB server HTTP basic auth.
 	conf.Server.HTTPD.AuthEnabled = true
-	conf.AdminUser = InfluxDBAdminUser{
+	conf.AdminUser = AdminUser{
 		Username: "demo",
 		Password: "demo",
 	}
@@ -566,7 +566,7 @@ func newTestInfluxDBStore() (*InfluxDBStore, error) {
 	// Switch mode to testMode.
 	conf.Mode = testMode
 
-	store, err := NewInfluxDBStore(conf)
+	store, err := New(conf)
 	if err != nil {
 		return nil, err
 	}

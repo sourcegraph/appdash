@@ -34,15 +34,15 @@ const (
 type mode int
 
 const (
-	releaseMode mode = iota // Default InfluxDBStore mode.
-	testMode                // Used to setup InfluxDBStore for tests.
+	releaseMode mode = iota // Default Store mode.
+	testMode                // Used to setup Store for tests.
 )
 
 // Compile-time "implements" check.
 var _ interface {
 	appdash.Store
 	appdash.Queryer
-} = (*InfluxDBStore)(nil)
+} = (*Store)(nil)
 
 var (
 	errMultipleSeries        = errors.New("unexpected multiple series")
@@ -52,8 +52,8 @@ var (
 // pointFields -> influxDBClient.Point.Fields
 type pointFields map[string]interface{}
 
-type InfluxDBStore struct {
-	config       *InfluxDBConfig
+type Store struct {
+	config       *Config
 	con          influxDBClient.Client // InfluxDB client connection.
 	dbName       string                // InfluxDB database name for this store.
 	clientTarget *url.URL              // HTTP URL that the client should connect to,
@@ -69,7 +69,7 @@ type InfluxDBStore struct {
 	log             *log.Logger
 }
 
-func (in *InfluxDBStore) Collect(id appdash.SpanID, anns ...appdash.Annotation) error {
+func (in *Store) Collect(id appdash.SpanID, anns ...appdash.Annotation) error {
 	// Find the start and end time of the span.
 	var events []appdash.Event
 	if err := appdash.UnmarshalEvents(anns, &events); err != nil {
@@ -148,7 +148,7 @@ func (in *InfluxDBStore) Collect(id appdash.SpanID, anns ...appdash.Annotation) 
 
 // flush immediately sends all pending spans in the underlying batch to
 // InfluxDB.
-func (in *InfluxDBStore) flush() error {
+func (in *Store) flush() error {
 	// Grab what information we need and unlock quickly to avoid contention.
 	in.batchMu.Lock()
 	batch := in.batch
@@ -172,7 +172,7 @@ func (in *InfluxDBStore) flush() error {
 }
 
 // flusher constantly flushes batches to InfluxDB at an interval.
-func (in *InfluxDBStore) flusher() {
+func (in *Store) flusher() {
 	in.flusherStopChan = make(chan struct{}, 1)
 	go func() {
 		for {
@@ -189,7 +189,7 @@ func (in *InfluxDBStore) flusher() {
 	}()
 }
 
-func (in *InfluxDBStore) Trace(id appdash.ID) (*appdash.Trace, error) {
+func (in *Store) Trace(id appdash.ID) (*appdash.Trace, error) {
 	trace := &appdash.Trace{}
 	q := fmt.Sprintf("SELECT * FROM spans WHERE trace_id='%s'", id)
 	result, err := in.executeOneQuery(q)
@@ -256,7 +256,7 @@ func mustJSONInt64(x interface{}) int64 {
 }
 
 // Aggregate implements the Aggregator interface.
-func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*appdash.AggregatedResult, error) {
+func (in *Store) Aggregate(start, end time.Duration) ([]*appdash.AggregatedResult, error) {
 	// Find the mean (average), minimum, maximum, std. deviation, and count of
 	// all spans. For details on how this works see the createContinuousQueries
 	// method.
@@ -329,7 +329,7 @@ func (in *InfluxDBStore) Aggregate(start, end time.Duration) ([]*appdash.Aggrega
 	return results, nil
 }
 
-func (in *InfluxDBStore) Traces(opts appdash.TracesOpts) ([]*appdash.Trace, error) {
+func (in *Store) Traces(opts appdash.TracesOpts) ([]*appdash.Trace, error) {
 	traces := make([]*appdash.Trace, 0)
 	rootSpansQuery := fmt.Sprintf("SELECT * FROM spans WHERE parent_id='%s'", zeroID)
 
@@ -444,8 +444,8 @@ func (in *InfluxDBStore) Traces(opts appdash.TracesOpts) ([]*appdash.Trace, erro
 	return traces, nil
 }
 
-// Close flushes the last batch to InfluxDB and shuts down the InfluxDBStore.
-func (in *InfluxDBStore) Close() error {
+// Close flushes the last batch to InfluxDB and shuts down the Store.
+func (in *Store) Close() error {
 	close(in.flusherStopChan)
 	if err := in.flush(); err != nil {
 		in.log.Println("Flush:", err)
@@ -453,7 +453,7 @@ func (in *InfluxDBStore) Close() error {
 	return in.server.Close()
 }
 
-func (in *InfluxDBStore) createDBIfNotExists() error {
+func (in *Store) createDBIfNotExists() error {
 	q := fmt.Sprintf("CREATE DATABASE %s", in.dbName)
 
 	// If a default retention policy is provided, it's used to extend the query in order to create the database with
@@ -474,7 +474,7 @@ func (in *InfluxDBStore) createDBIfNotExists() error {
 
 // createContinuousQueries creates the continuous queries used by Appdash. If
 // they already exist, no error is returned.
-func (in *InfluxDBStore) createContinuousQueries() error {
+func (in *Store) createContinuousQueries() error {
 	// The 'GROUP BY' (or 'bucket', if you will) size is calculated as the
 	// maximum number of samples we want over 72hr. The more samples we have,
 	// the more precise the stats on the Dashboard are and the slower query
@@ -514,7 +514,7 @@ func (in *InfluxDBStore) createContinuousQueries() error {
 }
 
 // createAdminUserIfNotExists finds admin user(`in.adminUser`) if not found it's created.
-func (in *InfluxDBStore) createAdminUserIfNotExists() error {
+func (in *Store) createAdminUserIfNotExists() error {
 	admin := in.config.AdminUser
 	userInfo, err := in.server.MetaClient.Authenticate(admin.Username, admin.Password)
 	if err == influxDBErrors.ErrUserNotFound {
@@ -531,7 +531,7 @@ func (in *InfluxDBStore) createAdminUserIfNotExists() error {
 	return nil
 }
 
-func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result, error) {
+func (in *Store) executeOneQuery(command string) (*influxDBClient.Result, error) {
 	response, err := in.con.Query(influxDBClient.Query{
 		Command:  command,
 		Database: in.dbName,
@@ -552,7 +552,7 @@ func (in *InfluxDBStore) executeOneQuery(command string) (*influxDBClient.Result
 
 // executeQueryNoResults is a helper function which executes a single query and
 // expects no results. If any error occurs, it is returned.
-func (in *InfluxDBStore) executeQueryNoResults(command string) error {
+func (in *Store) executeQueryNoResults(command string) error {
 	response, err := in.con.Query(influxDBClient.Query{
 		Command:  command,
 		Database: in.dbName,
@@ -566,7 +566,7 @@ func (in *InfluxDBStore) executeQueryNoResults(command string) error {
 	return nil
 }
 
-func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
+func (in *Store) init(server *influxDBServer.Server) error {
 	in.server = server
 	con, err := influxDBClient.NewHTTPClient(influxDBClient.HTTPConfig{
 		Addr:     in.clientTarget.String(),
@@ -597,19 +597,19 @@ func (in *InfluxDBStore) init(server *influxDBServer.Server) error {
 		return err
 	}
 
-	// TODO: let lib users decide `in.tracesPerPage` through InfluxDBConfig.
+	// TODO: let lib users decide `in.tracesPerPage` through Config.
 	in.tracesPerPage = defaultTracesPerPage
 
 	go in.flusher()
 	return nil
 }
 
-func (in *InfluxDBStore) setUpReleaseMode() error {
+func (in *Store) setUpReleaseMode() error {
 	in.dbName = releaseDBName
 	return nil
 }
 
-func (in *InfluxDBStore) setUpTestMode() error {
+func (in *Store) setUpTestMode() error {
 	in.dbName = testDBName
 	return in.executeQueryNoResults(fmt.Sprintf("DROP DATABASE IF EXISTS %s", in.dbName))
 }
@@ -646,7 +646,7 @@ func fieldToSpanID(field interface{}, errFieldType error) (*appdash.ID, error) {
 }
 
 // filterSchemas returns `Annotations` which contains items taken from `anns`.
-// Some items from `anns` won't be included(those which were not saved by `InfluxDBStore.Collect(...)`).
+// Some items from `anns` won't be included(those which were not saved by `Store.Collect(...)`).
 func filterSchemas(anns []appdash.Annotation) appdash.Annotations {
 	var annotations appdash.Annotations
 
@@ -662,13 +662,13 @@ func filterSchemas(anns []appdash.Annotation) appdash.Annotations {
 		if strings.HasPrefix(a.Key, appdash.SchemaPrefix) { // Check if current annotation is schema related one.
 			schema := a.Key[len(appdash.SchemaPrefix):] // Excludes the schema prefix part.
 
-			// Checks if `schema` exists in `schemas`, if so means current annotation was saved by `InfluxDBStore.Collect(...)`.
-			// If does not exist it means current annotation is empty on `InfluxDBStore.dbName` but still included within a query result.
+			// Checks if `schema` exists in `schemas`, if so means current annotation was saved by `Store.Collect(...)`.
+			// If does not exist it means current annotation is empty on `Store.dbName` but still included within a query result.
 			// Eg. If point "f" with a field "foo" & point "b" with a field "bar" are written to the same InfluxDB measurement
 			// and later queried, the result will include two fields: "foo" & "bar" for both points, even though each was written with one field.
-			if schemaExists(schema, schemas) { // Saved by `InfluxDBStore.Collect(...)` so should be added.
+			if schemaExists(schema, schemas) { // Saved by `Store.Collect(...)` so should be added.
 				annotations = append(annotations, a)
-			} else { // Do not add current annotation, is empty & not saved by `InfluxDBStore.Collect(...)`.
+			} else { // Do not add current annotation, is empty & not saved by `Store.Collect(...)`.
 				continue
 			}
 		} else {
@@ -894,9 +894,9 @@ func spansFromRow(row influxDBModels.Row) ([]*appdash.Span, error) {
 	return spans, nil
 }
 
-// NewInfluxDBStore returns a new InfluxDB-backed store. It starts an
-// in-process / embedded InfluxDB server.
-func NewInfluxDBStore(config *InfluxDBConfig) (*InfluxDBStore, error) {
+// New returns a new InfluxDB-backed store. It starts an in-process / embedded
+// InfluxDB server.
+func New(config *Config) (*Store, error) {
 	s, err := influxDBServer.NewServer(config.Server, config.BuildInfo)
 	if err != nil {
 		return nil, err
@@ -918,7 +918,7 @@ func NewInfluxDBStore(config *InfluxDBConfig) (*InfluxDBStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	in := InfluxDBStore{
+	in := Store{
 		config:       config,
 		clientTarget: clientTarget,
 		log:          log.New(os.Stderr, "appdash: InfluxDBStore: ", log.LstdFlags),
@@ -929,8 +929,8 @@ func NewInfluxDBStore(config *InfluxDBConfig) (*InfluxDBStore, error) {
 	return &in, nil
 }
 
-// NewInfluxDBConfig returns a new InfluxDBConfig with the default values.
-func NewInfluxDBConfig() (*InfluxDBConfig, error) {
+// NewConfig returns a new Config with the default values.
+func NewConfig() (*Config, error) {
 	// Create the default InfluxDB server configuration.
 	server, err := influxDBServer.NewDemoConfig()
 	if err != nil {
@@ -941,7 +941,7 @@ func NewInfluxDBConfig() (*InfluxDBConfig, error) {
 	server.Retention.Enabled = true
 	server.Retention.CheckInterval = toml.Duration(30 * time.Minute)
 
-	return &InfluxDBConfig{
+	return &Config{
 		Server: server,
 
 		// Specify the branch as "appdash" just for identification purposes.
@@ -953,7 +953,7 @@ func NewInfluxDBConfig() (*InfluxDBConfig, error) {
 		// because the Dashboard is hard-coded to displaying a 72hr timeline.
 		//
 		// Minimum duration time is 1 hour ("1h") - See: github.com/influxdata/influxdb/issues/5198
-		DefaultRP: InfluxDBRetentionPolicy{
+		DefaultRP: RetentionPolicy{
 			Name:     "three_days_only",
 			Duration: "3d",
 		},
@@ -963,10 +963,10 @@ func NewInfluxDBConfig() (*InfluxDBConfig, error) {
 	}, nil
 }
 
-type InfluxDBConfig struct {
-	AdminUser InfluxDBAdminUser
+type Config struct {
+	AdminUser AdminUser
 	BuildInfo *influxDBServer.BuildInfo
-	DefaultRP InfluxDBRetentionPolicy
+	DefaultRP RetentionPolicy
 	Mode      mode
 	Server    *influxDBServer.Config
 
@@ -979,7 +979,7 @@ type InfluxDBConfig struct {
 	// the case of an unresponsive or too slow InfluxDB server / pending flush
 	// operation.
 	//
-	// The default value used by NewInfluxDBConfig is 128*1024*1024 (128 MB).
+	// The default value used by NewConfig is 128*1024*1024 (128 MB).
 	MaxBatchSizeBytes int
 
 	// BatchFlushInterval specifies the minimum interval between flush calls by
@@ -987,16 +987,16 @@ type InfluxDBConfig struct {
 	// InfluxDB. That is, after each batch flush the goroutine will sleep for
 	// this amount of time to prevent CPU overutilization.
 	//
-	// The default value used by NewInfluxDBConfig is 500 * time.Millisecond.
+	// The default value used by NewConfig is 500 * time.Millisecond.
 	BatchFlushInterval time.Duration
 }
 
-type InfluxDBRetentionPolicy struct {
+type RetentionPolicy struct {
 	Name     string // Name used to indentify this retention policy.
 	Duration string // How long InfluxDB keeps the data. Eg: "1h", "1d", "1w".
 }
 
-type InfluxDBAdminUser struct {
+type AdminUser struct {
 	Username string
 	Password string
 }

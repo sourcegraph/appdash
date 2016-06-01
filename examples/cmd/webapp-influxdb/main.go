@@ -23,14 +23,14 @@ var collector appdash.Collector
 
 func main() {
 	// Create a default InfluxDB configuration.
-	conf, err := influxdbstore.NewInfluxDBConfig()
+	conf, err := influxdbstore.NewConfig()
 	if err != nil {
 		log.Fatalf("failed to create influxdb config, error: %v", err)
 	}
 
 	// Enable InfluxDB server HTTP basic auth.
 	conf.Server.HTTPD.AuthEnabled = true
-	conf.AdminUser = influxdbstore.InfluxDBAdminUser{
+	conf.AdminUser = influxdbstore.AdminUser{
 		Username: "demo",
 		Password: "demo",
 	}
@@ -50,7 +50,7 @@ func main() {
 	// Control where InfluxDB server logs are written to, if desired:
 	//conf.LogOutput = ioutil.Discard
 
-	store, err := influxdbstore.NewInfluxDBStore(conf)
+	store, err := influxdbstore.New(conf)
 	if err != nil {
 		log.Fatalf("failed to create influxdb store, error: %v", err)
 	}
