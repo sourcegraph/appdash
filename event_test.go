@@ -113,7 +113,7 @@ func TestUnmarshalEvents(t *testing.T) {
 }
 
 func TestSpanName(t *testing.T) {
-	e := spanName{"foo"}
+	e := SpanNameEvent{"foo"}
 
 	anns, err := MarshalEvent(e)
 	if err != nil {

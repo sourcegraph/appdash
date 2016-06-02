@@ -38,8 +38,8 @@ func TestRecorder(t *testing.T) {
 		t.Errorf("got diff annotations for Msg event:\n%s", strings.Join(diff, "\n"))
 	}
 
-	if diff := diffAnnotationsFromEvent(anns, spanName{"name"}); len(diff) > 0 {
-		t.Errorf("got diff annotations for spanName event:\n%s", strings.Join(diff, "\n"))
+	if diff := diffAnnotationsFromEvent(anns, SpanNameEvent{"name"}); len(diff) > 0 {
+		t.Errorf("got diff annotations for SpanNameEvent:\n%s", strings.Join(diff, "\n"))
 	}
 }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+- June 1, 2016 - **Breaking Change!**
+  - [#172](https://github.com/sourcegraph/appdash/pull/171) Fixed `appdash serve` (assets were not served properly).
+  - [#172](https://github.com/sourcegraph/appdash/pull/171) Removes display/serving of Dashboard page except when using InfluxDBStore (not the default).
+  - [#172](https://github.com/sourcegraph/appdash/pull/171) Move InfluxDBStore into experimental subpackage.
+  - [#172](https://github.com/sourcegraph/appdash/pull/171) We no longer incorrectly vendor libraries (we're a library, see #163).
 - May 26, 2016 - **Action Required!**
   - [#171](https://github.com/sourcegraph/appdash/pull/171) Fixed an index out of bounds panic when viewing the /traces page.
   - [#171](https://github.com/sourcegraph/appdash/pull/171) InfluxDBStore uses a less memory intensive DB schema (users will need to `rm -rf ~/.influxdb` to remove the old DB).

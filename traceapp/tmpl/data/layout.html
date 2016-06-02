@@ -105,14 +105,22 @@
         <div id="navbar" class="collapse navbar-collapse pull-right">
           <ul class="nav navbar-nav">
 
-            <!-- Traces dropdown menu -->
-            <li class="dropdown">
-               <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false"><i class="fa fa-area-chart ico-navbar"></i> Traces <span class="caret"></span></a>
-               <ul class="dropdown-menu" role="menu">
-                 <li><a href="dashboard" title="shows the dashboard">Dashboard</a></li>
-                 <li><a href="traces" title="shows all traces, excluding aggregated ones">All Traces</a></li>
-               </ul>
-             </li>
+            {{if .HaveDashboard}}
+              <!-- Traces dropdown menu -->
+              <li class="dropdown">
+                 <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false"><i class="fa fa-area-chart ico-navbar"></i> Traces <span class="caret"></span></a>
+                 <ul class="dropdown-menu" role="menu">
+                   <li><a href="dashboard" title="shows the dashboard">Dashboard</a></li>
+                   <li><a href="traces" title="shows all traces, excluding aggregated ones">All Traces</a></li>
+                 </ul>
+               </li>
+            {{else}}
+              <li>
+                <a href="traces" title="shows all traces">
+                  <i class="fa fa-area-chart ico-navbar"></i> Traces
+                </a>
+              </li>
+            {{end}}
 
             <li>
               <a href="https://godoc.org/sourcegraph.com/sourcegraph/appdash" target="_blank">
