@@ -63,6 +63,19 @@ class LogEvent:
     def marshal(self):
         return {"Msg": self.msg, "Time": self.time}
 
+class TimespanEvent:
+
+    schema = "Timespan"
+    start = ""
+    end = ""
+
+    def __init__(self, start, end):
+        self.start = timeString(start)
+        self.end = timeString(end)
+
+    def marshal(self):
+        return {"Span.Start": self.start, "Span.End": self.end}
+
 # SQLEvent is an SQL query event with send and receive times, as well as the
 # actual SQL that was ran, and a optional tag.
 class SQLEvent:
@@ -71,7 +84,7 @@ class SQLEvent:
     # sql is literally the SQL query that was ran.
     sql = ""
 
-    # tag is a optional user-created tag associated with the SQL event. 
+    # tag is a optional user-created tag associated with the SQL event.
     tag = ""
 
     # RFC3339-UTC timestamp of when the query was sent, and later a result received.
