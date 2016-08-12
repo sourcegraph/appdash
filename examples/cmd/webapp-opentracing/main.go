@@ -110,7 +110,6 @@ func Home(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// We inject the span into the request headers before making the request.
-
 		carrier := opentracing.HTTPHeadersCarrier(req.Header)
 		span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
 		resp, err := httpClient.Do(req)
