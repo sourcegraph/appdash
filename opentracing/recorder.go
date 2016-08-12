@@ -41,13 +41,13 @@ func NewRecorder(collector appdash.Collector, opts Options) *Recorder {
 // RecordSpan converts a RawSpan into the Appdash representation of a span
 // and records it to the underlying collector.
 func (r *Recorder) RecordSpan(sp basictracer.RawSpan) {
-	if !sp.Sampled {
+	if !sp.Context.Sampled {
 		return
 	}
 
 	spanID := appdash.SpanID{
-		Span:   appdash.ID(uint64(sp.SpanID)),
-		Trace:  appdash.ID(uint64(sp.TraceID)),
+		Span:   appdash.ID(uint64(sp.Context.SpanID)),
+		Trace:  appdash.ID(uint64(sp.Context.TraceID)),
 		Parent: appdash.ID(uint64(sp.ParentSpanID)),
 	}
 
@@ -63,7 +63,7 @@ func (r *Recorder) RecordSpan(sp basictracer.RawSpan) {
 		r.collectAnnotation(spanID, appdash.Annotation{Key: key, Value: val})
 	}
 
-	for key, val := range sp.Baggage {
+	for key, val := range sp.Context.Baggage {
 		r.collectAnnotation(spanID, appdash.Annotation{Key: key, Value: []byte(val)})
 	}
 

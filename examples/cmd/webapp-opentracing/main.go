@@ -110,8 +110,9 @@ func Home(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// We inject the span into the request headers before making the request.
-		carrier := opentracing.HTTPHeaderTextMapCarrier(req.Header)
-		span.Tracer().Inject(span, opentracing.TextMap, carrier)
+
+		carrier := opentracing.HTTPHeadersCarrier(req.Header)
+		span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			log.Println("/endpoint:", err)
@@ -138,11 +139,12 @@ func Home(w http.ResponseWriter, r *http.Request) {
 // slow API endpoint as the bottleneck of your application.
 func Endpoint(w http.ResponseWriter, r *http.Request) {
 	// Extract the trace from the headers and join it with a new child span.
-	carrier := opentracing.HTTPHeaderTextMapCarrier(r.Header)
-	span, err := opentracing.GlobalTracer().Join(r.URL.Path, opentracing.TextMap, carrier)
+	carrier := opentracing.HTTPHeadersCarrier(r.Header)
+	spanCtx, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 	if err != nil {
 		return
 	}
+	span := opentracing.StartSpan(r.URL.Path, opentracing.ChildOf(spanCtx))
 	defer span.Finish()
 
 	span.SetTag("Request.Host", r.Host)
