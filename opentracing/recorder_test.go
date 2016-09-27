@@ -25,29 +25,29 @@ func TestOpentracingRecorder(t *testing.T) {
 
 	r := NewRecorder(mc, Options{})
 	raw := basictracer.RawSpan{
-		Context: basictracer.Context{
-			TraceID:      1,
-			SpanID:       2,
-			ParentSpanID: 3,
-			Sampled:      true,
+		Context: basictracer.SpanContext{
+			TraceID: 1,
+			SpanID:  2,
+			Sampled: true,
+			Baggage: map[string]string{
+				baggageKey: baggageVal,
+			},
 		},
+		ParentSpanID: 3,
 		Tags: map[string]interface{}{
 			"tag": 1,
-		},
-		Baggage: map[string]string{
-			baggageKey: baggageVal,
 		},
 		Operation: opName,
 		Duration:  time.Duration(1),
 	}
 
 	unsampledRaw := basictracer.RawSpan{
-		Context: basictracer.Context{
-			TraceID:      1,
-			SpanID:       2,
-			ParentSpanID: 3,
-			Sampled:      false,
+		Context: basictracer.SpanContext{
+			TraceID: 1,
+			SpanID:  2,
+			Sampled: false,
 		},
+		ParentSpanID: 3,
 	}
 
 	r.RecordSpan(raw)

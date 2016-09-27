@@ -53,9 +53,13 @@ func (r *Recorder) RecordSpan(sp basictracer.RawSpan) {
 
 	r.collectEvent(spanID, appdash.SpanName(sp.Operation))
 
-	// Record all of the logs. Payloads are thrown out.
+	// Record all of the logs.
 	for _, log := range sp.Logs {
-		r.collectEvent(spanID, appdash.LogWithTimestamp(log.Event, log.Timestamp))
+		if logs, err := materializeWithJSON(log.Fields); err != nil {
+			r.logError(spanID, err)
+		} else {
+			r.collectEvent(spanID, appdash.LogWithTimestamp(string(logs), log.Timestamp))
+		}
 	}
 
 	for key, value := range sp.Tags {
