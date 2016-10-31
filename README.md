@@ -1,4 +1,4 @@
-# appdash
+# appdash (view on [Sourcegraph](https://sourcegraph.com/github.com/sourcegraph/appdash))
 
 <img width=250 src="https://s3-us-west-2.amazonaws.com/sourcegraph-assets/apptrace-screenshot0.png" align="right">
 
