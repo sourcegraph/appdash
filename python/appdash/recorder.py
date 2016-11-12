@@ -20,8 +20,8 @@ class AppdashRecorder(SpanRecorder):
         span_id = SpanID()
         span_id.trace = span.context.trace_id
         span_id.span = span.context.span_id
-        if span.context.parent_id is not None:
-            span_id.parent = span.context.parent_id
+        if span.parent_id is not None:
+            span_id.parent = span.parent_id
 
         self._collector.collect(span_id,
                 *event.MarshalEvent(event.SpanNameEvent(span.operation_name)))
