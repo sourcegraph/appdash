@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,17 +18,15 @@ import (
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
 	"github.com/codegangsta/negroni"
-	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 )
 
-// Used to store the SpanID in a request's context (see gorilla/context docs
-// for more information).
-const CtxSpanID = 0
+// Used to store the SpanID in a request's context
+type ctxSpanKey struct{}
 
 // We want to create HTTP clients recording to this collector inside our Home
 // handler below, so we use a global variable (for simplicity sake) to store
-// the collector in use. We could also use gorilla/context to store it.
+// the collector in use. We could also use context.Context to store it.
 var collector appdash.Collector
 
 func main() {
@@ -82,8 +81,8 @@ func main() {
 	// wanted to.
 	tracemw := httptrace.Middleware(collector, &httptrace.MiddlewareConfig{
 		RouteName: func(r *http.Request) string { return r.URL.Path },
-		SetContextSpan: func(r *http.Request, spanID appdash.SpanID) {
-			context.Set(r, CtxSpanID, spanID)
+		SetContextSpan: func(r *http.Request, spanID appdash.SpanID) *http.Request {
+			return r.WithContext(context.WithValue(r.Context(), ctxSpanKey{}, spanID))
 		},
 	})
 
@@ -101,9 +100,9 @@ func main() {
 
 // Home is the homepage handler for our app.
 func Home(w http.ResponseWriter, r *http.Request) {
-	// Grab the span from the gorilla context. We do this so that we can grab
+	// Grab the span from the context. We do this so that we can grab
 	// the span.Trace ID and link directly to the trace on the web-page itself!
-	span := context.Get(r, CtxSpanID).(appdash.SpanID)
+	span := r.Context().Value(ctxSpanKey{}).(appdash.SpanID)
 
 	// We're going to make some API requests, so we create a HTTP client using
 	// a appdash/httptrace transport here. The transport will inform Appdash of

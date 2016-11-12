@@ -76,7 +76,7 @@ func TestMiddleware_useSpanFromHeaders(t *testing.T) {
 	mw := Middleware(c, &MiddlewareConfig{
 		RouteName:      func(r *http.Request) string { return "r" },
 		CurrentUser:    func(r *http.Request) string { return "u" },
-		SetContextSpan: func(r *http.Request, id appdash.SpanID) { setContextSpan = id },
+		SetContextSpan: func(r *http.Request, id appdash.SpanID) *http.Request { setContextSpan = id; return r },
 	})
 
 	w := httptest.NewRecorder()
@@ -128,7 +128,7 @@ func TestMiddleware_createNewSpan(t *testing.T) {
 
 	var setContextSpan appdash.SpanID
 	mw := Middleware(c, &MiddlewareConfig{
-		SetContextSpan: func(r *http.Request, id appdash.SpanID) { setContextSpan = id },
+		SetContextSpan: func(r *http.Request, id appdash.SpanID) *http.Request { setContextSpan = id; return r },
 	})
 
 	w := httptest.NewRecorder()

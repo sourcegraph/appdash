@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,11 +14,10 @@ import (
 	"sourcegraph.com/sourcegraph/appdash/x/influxdbstore"
 
 	"github.com/codegangsta/negroni"
-	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 )
 
-const CtxSpanID = 0
+type ctxSpanKey struct{}
 
 var collector appdash.Collector
 
@@ -77,8 +77,8 @@ func main() {
 	collector = appdash.NewLocalCollector(store)
 	tracemw := httptrace.Middleware(collector, &httptrace.MiddlewareConfig{
 		RouteName: func(r *http.Request) string { return r.URL.Path },
-		SetContextSpan: func(r *http.Request, spanID appdash.SpanID) {
-			context.Set(r, CtxSpanID, spanID)
+		SetContextSpan: func(r *http.Request, spanID appdash.SpanID) *http.Request {
+			return r.WithContext(context.WithValue(r.Context(), ctxSpanKey{}, spanID))
 		},
 	})
 	router := mux.NewRouter()
@@ -91,7 +91,7 @@ func main() {
 }
 
 func Home(w http.ResponseWriter, r *http.Request) {
-	span := context.Get(r, CtxSpanID).(appdash.SpanID)
+	span := r.Context().Value(ctxSpanKey{}).(appdash.SpanID)
 	httpClient := &http.Client{
 		Transport: &httptrace.Transport{
 			Recorder: appdash.NewRecorder(span, collector),
