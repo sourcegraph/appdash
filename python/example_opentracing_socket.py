@@ -29,7 +29,7 @@ for i in range(0, 7):
     if i % 2 == 0:
         span.log_event("Hello world!")
 
-    child_span = tracer.start_span("child", parent=span)
+    child_span = tracer.start_span("child", child_of=span)
     child_span.finish()
 
     span.finish(finish_time=time.time()+2)
