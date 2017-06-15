@@ -16,7 +16,7 @@ import (
 	"sourcegraph.com/sourcegraph/appdash/httptrace"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
-	"github.com/codegangsta/negroni"
+	"github.com/urfave/negroni"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 )
