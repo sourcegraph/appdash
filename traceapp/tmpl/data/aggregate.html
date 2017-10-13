@@ -24,10 +24,14 @@
     position: relative;
     top: -100px;
   }
+  .clickable-z-index {
+    z-index: 1;
+    position: relative;	
+  }
 </style>
 
 <!-- View Mode menu -->
-<div class="btn-group pull-right" role="group" aria-label="..." id="top-right-btns">
+<div class="btn-group pull-right clickable-z-index" role="group" aria-label="..." id="top-right-btns">
   <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false" title="choose the aggregated data viewing mode">
     View Mode <span class="caret"></span>
   </button>
