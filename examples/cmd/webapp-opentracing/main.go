@@ -18,7 +18,7 @@ import (
 	appdashtracer "sourcegraph.com/sourcegraph/appdash/opentracing"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
-	"github.com/codegangsta/negroni"
+	"github.com/urfave/negroni"
 	"github.com/gorilla/mux"
 	opentracing "github.com/opentracing/opentracing-go"
 )
