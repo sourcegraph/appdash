@@ -13,3 +13,7 @@ before_install:
   - mkdir -p $HOME/gopath/src/sourcegraph.com/sourcegraph
   - mv $TRAVIS_BUILD_DIR $HOME/gopath/src/sourcegraph.com/sourcegraph/appdash
   - export TRAVIS_BUILD_DIR=$HOME/gopath/src/sourcegraph.com/sourcegraph/appdash
+script:
+  - diff -u <(echo -n) <(gofmt -d -s .)
+  - go tool vet -all -shadow -composites=false .
+  - go test -v -race ./...
