@@ -28,7 +28,7 @@ func TestCollectorServer(t *testing.T) {
 		return nil
 	})
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp4", ":0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestCollectorServer_stress(t *testing.T) {
 		return nil
 	})
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp4", ":0")
 	if err != nil {
 		t.Fatal(err)
 	}
