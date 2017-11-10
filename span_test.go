@@ -193,7 +193,7 @@ func BenchmarkSpanIDString(b *testing.B) {
 		Span:   300,
 	}
 	for i := 0; i < b.N; i++ {
-		id.String()
+		_ = id.String()
 	}
 }
 

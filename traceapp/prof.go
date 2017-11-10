@@ -23,7 +23,7 @@ type profile struct {
 func (a *App) calcProfile(buf []*profile, t *appdash.Trace) (prof []*profile, childProf *profile, err error) {
 	// Unmarshal the trace's span events.
 	var events []appdash.Event
-	if err := appdash.UnmarshalEvents(t.Span.Annotations, &events); err != nil {
+	if err = appdash.UnmarshalEvents(t.Span.Annotations, &events); err != nil {
 		return nil, nil, err
 	}
 
