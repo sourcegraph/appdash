@@ -51,6 +51,9 @@ func TestCollectorServer(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
+
+	packetsMu.Lock()
+	defer packetsMu.Unlock()
 	if !reflect.DeepEqual(packets, collectPackets) {
 		t.Errorf("server collected %v, want %v", packets, collectPackets)
 	}
@@ -69,7 +72,7 @@ func TestCollectorServer_stress(t *testing.T) {
 
 	var (
 		packets   = map[SpanID]struct{}{}
-		packetsMu sync.Mutex
+		packetsMu sync.RWMutex
 	)
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
 		packetsMu.Lock()
@@ -108,11 +111,13 @@ func TestCollectorServer_stress(t *testing.T) {
 
 	time.Sleep(20 * time.Millisecond)
 	var missing []string
+	packetsMu.RLock()
 	for spanID := range want {
 		if _, present := packets[spanID]; !present {
 			missing = append(missing, fmt.Sprintf("span %v was not collected", spanID))
 		}
 	}
+	packetsMu.RUnlock()
 	if len(missing) > allowFailures {
 		for _, missing := range missing {
 			t.Error(missing)
@@ -157,8 +162,13 @@ func BenchmarkRemoteCollector1000(b *testing.B) {
 }
 
 func TestTLSCollectorServer(t *testing.T) {
-	var numPackets int
+	var (
+		numPackets   int
+		numPacketsMu sync.RWMutex
+	)
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		numPacketsMu.Lock()
+		defer numPacketsMu.Unlock()
 		numPackets++
 		return nil
 	})
@@ -180,14 +190,22 @@ func TestTLSCollectorServer(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
+	numPacketsMu.RLock()
+	defer numPacketsMu.RUnlock()
 	if want := 2; numPackets != want {
 		t.Errorf("server collected %d packets, want %d", numPackets, want)
 	}
 }
 
 func TestChunkedCollector(t *testing.T) {
-	var packets []*wire.CollectPacket
+	var (
+		packets   []*wire.CollectPacket
+		packetsMu sync.RWMutex
+	)
+
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		packetsMu.Lock()
+		defer packetsMu.Unlock()
 		packets = append(packets, newCollectPacket(span, anns))
 		return nil
 	})
@@ -202,9 +220,11 @@ func TestChunkedCollector(t *testing.T) {
 	cc.Collect(SpanID{1, 2, 3}, Annotation{"k4", []byte("v4")})
 
 	// Check before the MinInterval has elapsed.
+	packetsMu.RLock()
 	if len(packets) != 0 {
 		t.Errorf("before MinInterval: got len(packets) == %d, want 0", len(packets))
 	}
+	packetsMu.RUnlock()
 
 	time.Sleep(cc.MinInterval * 2)
 
@@ -213,20 +233,24 @@ func TestChunkedCollector(t *testing.T) {
 		newCollectPacket(SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}, {"k2", []byte("v2")}, {"k4", []byte("v4")}}),
 		newCollectPacket(SpanID{2, 3, 4}, Annotations{{"k3", []byte("v3")}}),
 	}
-	sort.Sort(byTraceID(packets))
 	sort.Sort(byTraceID(want))
+	packetsMu.Lock()
+	sort.Sort(byTraceID(packets))
 	if !reflect.DeepEqual(packets, want) {
 		t.Errorf("after MinInterval: got packets == %v, want %v", packets, want)
 	}
+	lenBeforeStop := len(packets)
+	packetsMu.Unlock()
 
 	// Check that Stop stops it.
-	lenBeforeStop := len(packets)
 	cc.Stop()
 	cc.Collect(SpanID{1, 2, 3}, Annotation{"k5", []byte("v5")})
 	time.Sleep(cc.MinInterval * 2)
+	packetsMu.RLock()
 	if len(packets) != lenBeforeStop {
 		t.Errorf("after Stop: got len(packets) == %d, want %d", len(packets), lenBeforeStop)
 	}
+	packetsMu.RUnlock()
 }
 
 func TestChunkedCollectorFlushTimeout(t *testing.T) {
@@ -249,6 +273,8 @@ func TestChunkedCollectorFlushTimeout(t *testing.T) {
 	if err != ErrQueueDropped {
 		t.Fatal("got", err, "expected", ErrQueueDropped)
 	}
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
 	if len(cc.pendingBySpanID) != 0 {
 		t.Fatal("got", len(cc.pendingBySpanID), "queued but expected 0")
 	}
