@@ -16,9 +16,9 @@ import (
 	"sourcegraph.com/sourcegraph/appdash/httptrace"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
-	"github.com/urfave/negroni"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
+	"github.com/urfave/negroni"
 )
 
 // Used to store the SpanID in a request's context (see gorilla/context docs

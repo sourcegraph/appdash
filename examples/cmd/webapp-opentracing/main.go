@@ -18,9 +18,9 @@ import (
 	appdashtracer "sourcegraph.com/sourcegraph/appdash/opentracing"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
-	"github.com/urfave/negroni"
 	"github.com/gorilla/mux"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/urfave/negroni"
 )
 
 func main() {

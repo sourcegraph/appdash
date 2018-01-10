@@ -138,8 +138,8 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 
 	// Get sub-span if the Span route var is present.
 	if spanIDStr := v["Span"]; spanIDStr != "" {
-		spanID, err := appdash.ParseID(spanIDStr)
-		if err != nil {
+		var spanID appdash.ID
+		if spanID, err = appdash.ParseID(spanIDStr); err != nil {
 			return err
 		}
 		trace = trace.FindSpan(spanID)
@@ -192,7 +192,7 @@ func (a *App) serveTrace(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if err := gz.Close(); err != nil {
+	if err = gz.Close(); err != nil {
 		return err
 	}
 	permalink, err := a.URLToTrace(trace.ID.Trace)
@@ -266,8 +266,8 @@ func (a *App) serveAggregate(w http.ResponseWriter, r *http.Request) error {
 	if len(selection) > 0 {
 		var selected []*appdash.Trace
 		for _, idStr := range strings.Split(selection, ",") {
-			id, err := appdash.ParseID(idStr)
-			if err != nil {
+			var id appdash.ID
+			if id, err = appdash.ParseID(idStr); err != nil {
 				return err
 			}
 			for _, t := range traces {

@@ -28,7 +28,7 @@ func TestCollectorServer(t *testing.T) {
 		return nil
 	})
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp4", ":0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +51,9 @@ func TestCollectorServer(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
+
+	packetsMu.Lock()
+	defer packetsMu.Unlock()
 	if !reflect.DeepEqual(packets, collectPackets) {
 		t.Errorf("server collected %v, want %v", packets, collectPackets)
 	}
@@ -69,7 +72,7 @@ func TestCollectorServer_stress(t *testing.T) {
 
 	var (
 		packets   = map[SpanID]struct{}{}
-		packetsMu sync.Mutex
+		packetsMu sync.RWMutex
 	)
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
 		packetsMu.Lock()
@@ -85,7 +88,7 @@ func TestCollectorServer_stress(t *testing.T) {
 		return nil
 	})
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp4", ":0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,11 +111,13 @@ func TestCollectorServer_stress(t *testing.T) {
 
 	time.Sleep(20 * time.Millisecond)
 	var missing []string
+	packetsMu.RLock()
 	for spanID := range want {
 		if _, present := packets[spanID]; !present {
 			missing = append(missing, fmt.Sprintf("span %v was not collected", spanID))
 		}
 	}
+	packetsMu.RUnlock()
 	if len(missing) > allowFailures {
 		for _, missing := range missing {
 			t.Error(missing)
@@ -157,8 +162,13 @@ func BenchmarkRemoteCollector1000(b *testing.B) {
 }
 
 func TestTLSCollectorServer(t *testing.T) {
-	var numPackets int
+	var (
+		numPackets   int
+		numPacketsMu sync.RWMutex
+	)
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		numPacketsMu.Lock()
+		defer numPacketsMu.Unlock()
 		numPackets++
 		return nil
 	})
@@ -180,14 +190,22 @@ func TestTLSCollectorServer(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
+	numPacketsMu.RLock()
+	defer numPacketsMu.RUnlock()
 	if want := 2; numPackets != want {
 		t.Errorf("server collected %d packets, want %d", numPackets, want)
 	}
 }
 
 func TestChunkedCollector(t *testing.T) {
-	var packets []*wire.CollectPacket
+	var (
+		packets   []*wire.CollectPacket
+		packetsMu sync.RWMutex
+	)
+
 	mc := collectorFunc(func(span SpanID, anns ...Annotation) error {
+		packetsMu.Lock()
+		defer packetsMu.Unlock()
 		packets = append(packets, newCollectPacket(span, anns))
 		return nil
 	})
@@ -202,9 +220,11 @@ func TestChunkedCollector(t *testing.T) {
 	cc.Collect(SpanID{1, 2, 3}, Annotation{"k4", []byte("v4")})
 
 	// Check before the MinInterval has elapsed.
+	packetsMu.RLock()
 	if len(packets) != 0 {
 		t.Errorf("before MinInterval: got len(packets) == %d, want 0", len(packets))
 	}
+	packetsMu.RUnlock()
 
 	time.Sleep(cc.MinInterval * 2)
 
@@ -213,20 +233,24 @@ func TestChunkedCollector(t *testing.T) {
 		newCollectPacket(SpanID{1, 2, 3}, Annotations{{"k1", []byte("v1")}, {"k2", []byte("v2")}, {"k4", []byte("v4")}}),
 		newCollectPacket(SpanID{2, 3, 4}, Annotations{{"k3", []byte("v3")}}),
 	}
-	sort.Sort(byTraceID(packets))
 	sort.Sort(byTraceID(want))
+	packetsMu.Lock()
+	sort.Sort(byTraceID(packets))
 	if !reflect.DeepEqual(packets, want) {
 		t.Errorf("after MinInterval: got packets == %v, want %v", packets, want)
 	}
+	lenBeforeStop := len(packets)
+	packetsMu.Unlock()
 
 	// Check that Stop stops it.
-	lenBeforeStop := len(packets)
 	cc.Stop()
 	cc.Collect(SpanID{1, 2, 3}, Annotation{"k5", []byte("v5")})
 	time.Sleep(cc.MinInterval * 2)
+	packetsMu.RLock()
 	if len(packets) != lenBeforeStop {
 		t.Errorf("after Stop: got len(packets) == %d, want %d", len(packets), lenBeforeStop)
 	}
+	packetsMu.RUnlock()
 }
 
 func TestChunkedCollectorFlushTimeout(t *testing.T) {
@@ -249,6 +273,8 @@ func TestChunkedCollectorFlushTimeout(t *testing.T) {
 	if err != ErrQueueDropped {
 		t.Fatal("got", err, "expected", ErrQueueDropped)
 	}
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
 	if len(cc.pendingBySpanID) != 0 {
 		t.Fatal("got", len(cc.pendingBySpanID), "queued but expected 0")
 	}
@@ -297,25 +323,26 @@ func init() {
 // generated from src/crypto/tls:
 // go run generate_cert.go  --rsa-bits 512 --host 127.0.0.1,::1,example.com --ca --start-date "Jan 1 00:00:00 1970" --duration=1000000h
 var localhostCert = []byte(`-----BEGIN CERTIFICATE-----
-MIIBdzCCASOgAwIBAgIBADALBgkqhkiG9w0BAQUwEjEQMA4GA1UEChMHQWNtZSBD
-bzAeFw03MDAxMDEwMDAwMDBaFw00OTEyMzEyMzU5NTlaMBIxEDAOBgNVBAoTB0Fj
-bWUgQ28wWjALBgkqhkiG9w0BAQEDSwAwSAJBAN55NcYKZeInyTuhcCwFMhDHCmwa
-IUSdtXdcbItRB/yfXGBhiex00IaLXQnSU+QZPRZWYqeTEbFSgihqi1PUDy8CAwEA
-AaNoMGYwDgYDVR0PAQH/BAQDAgCkMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1Ud
-EwEB/wQFMAMBAf8wLgYDVR0RBCcwJYILZXhhbXBsZS5jb22HBH8AAAGHEAAAAAAA
-AAAAAAAAAAAAAAEwCwYJKoZIhvcNAQEFA0EAAoQn/ytgqpiLcZu9XKbCJsJcvkgk
-Se6AbGXgSlq+ZCEVo0qIwSgeBqmsJxUu7NCSOwVJLYNEBO2DtIxoYVk+MA==
+MIIBjzCCATmgAwIBAgIRAKOMbj1tSId/UIw8iy+WOsYwDQYJKoZIhvcNAQELBQAw
+EjEQMA4GA1UEChMHQWNtZSBDbzAgFw03MDAxMDEwMDAwMDBaGA8yMDg0MDEyOTE2
+MDAwMFowEjEQMA4GA1UEChMHQWNtZSBDbzBcMA0GCSqGSIb3DQEBAQUAA0sAMEgC
+QQDSCuKkkCiQucKc3JxehtEJ2R2kf2HyN0Nv+WM9b3V/k+XP0bM8YdH5mCL3tv+D
+dRhDZweBGjaCfjftrkSRchpjAgMBAAGjaDBmMA4GA1UdDwEB/wQEAwICpDATBgNV
+HSUEDDAKBggrBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MC4GA1UdEQQnMCWCC2V4
+YW1wbGUuY29thwR/AAABhxAAAAAAAAAAAAAAAAAAAAABMA0GCSqGSIb3DQEBCwUA
+A0EAdBLKWCH2P8vLBeOMRN49+YdkFZbpuMZ/VeRqba6WSjOhRrMAZMKbhjuJLRi4
+1jP+GHPZBroLQXlPtAsroVE1fg==
 -----END CERTIFICATE-----`)
 
 // localhostKey is the private key for localhostCert.
 var localhostKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBPAIBAAJBAN55NcYKZeInyTuhcCwFMhDHCmwaIUSdtXdcbItRB/yfXGBhiex0
-0IaLXQnSU+QZPRZWYqeTEbFSgihqi1PUDy8CAwEAAQJBAQdUx66rfh8sYsgfdcvV
-NoafYpnEcB5s4m/vSVe6SU7dCK6eYec9f9wpT353ljhDUHq3EbmE4foNzJngh35d
-AekCIQDhRQG5Li0Wj8TM4obOnnXUXf1jRv0UkzE9AHWLG5q3AwIhAPzSjpYUDjVW
-MCUXgckTpKCuGwbJk7424Nb8bLzf3kllAiA5mUBgjfr/WtFSJdWcPQ4Zt9KTMNKD
-EUO0ukpTwEIl6wIhAMbGqZK3zAAFdq8DD2jPx+UJXnh0rnOkZBzDtJ6/iN69AiEA
-1Aq8MJgTaYsDQWyU/hDq5YkDJc9e9DSCvUIzqxQWMQE=
+MIIBOgIBAAJBANIK4qSQKJC5wpzcnF6G0QnZHaR/YfI3Q2/5Yz1vdX+T5c/Rszxh
+0fmYIve2/4N1GENnB4EaNoJ+N+2uRJFyGmMCAwEAAQJALMKhFcyauGy9qkvhDsvQ
+FDcud/WlW8anGl+c5GSyN2NcL1omkOQHmkVqAx1xLbId+1KzH8YOR7TyDDy2DFzW
+0QIhAPL/GA2qbLovJLstNm0cJiEt+q4YwmTB6tQz2hYGXMZnAiEA3UhXlN7cMQH5
+BxIu9deviOSBdR09pI3jdeNHJM7/tqUCIFKhqH5NK/gMPANilpV38wdpaUt2o/Q7
+dS2ADHNc6oOVAiEAuX7dPESd3M9EjHLnvtpxoZW8GArNE9aFqNs/VlHX9qkCIFI8
+nwoPqw0BHjIJFwQDxA7UZAx75riOvYxv1jvgc3XR
 -----END RSA PRIVATE KEY-----`)
 
 func BenchmarkChunkedCollector500(b *testing.B) {

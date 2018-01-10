@@ -92,36 +92,26 @@ func (t *Trace) treeString(w io.Writer, depth int) {
 
 // findTraceTimes finds the minimum and maximum timespan event times for the
 // given set of events, or returns ok == false if there are no such events.
-func findTraceTimes(events []Event) (start, end time.Time, ok bool) {
+func findTraceTimes(events []Event) (start, end time.Time, _ bool) {
 	// Find the start and end time of the trace.
-	var (
-		eStart, eEnd time.Time
-		haveTimes    = false
-	)
 	for _, e := range events {
 		e, ok := e.(TimespanEvent)
 		if !ok {
 			continue
 		}
-		if !haveTimes {
-			haveTimes = true
-			eStart = e.Start()
-			eEnd = e.End()
+		if start.IsZero() {
+			start = e.Start()
+			end = e.End()
 			continue
 		}
-		if v := e.Start(); v.UnixNano() < eStart.UnixNano() {
-			eStart = v
+		if v := e.Start(); v.UnixNano() < start.UnixNano() {
+			start = v
 		}
-		if v := e.End(); v.UnixNano() > eEnd.UnixNano() {
-			eEnd = v
+		if v := e.End(); v.UnixNano() > end.UnixNano() {
+			end = v
 		}
 	}
-	if !haveTimes {
-		// We didn't find any timespan events at all, so we're done here.
-		ok = false
-		return
-	}
-	return eStart, eEnd, true
+	return start, end, !start.IsZero()
 }
 
 type tracesByIDSpan []*Trace

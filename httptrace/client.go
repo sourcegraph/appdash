@@ -125,7 +125,7 @@ type Transport struct {
 	SetName bool
 
 	// requests keeps clone request
-	reqMu    sync.Mutex
+	reqMu    sync.RWMutex
 	requests map[*http.Request]*http.Request
 }
 
@@ -212,7 +212,9 @@ func (t *Transport) CancelRequest(req *http.Request) {
 		CancelRequest(*http.Request)
 	}
 
+	t.reqMu.RLock()
 	newReq, ok := t.requests[req]
+	t.reqMu.RUnlock()
 	if !ok {
 		return
 	}
