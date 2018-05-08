@@ -1,6 +1,7 @@
 package httptrace
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
@@ -75,6 +76,9 @@ func Middleware(c appdash.Collector, conf *MiddlewareConfig) func(rw http.Respon
 
 		if conf.SetContextSpan != nil {
 			conf.SetContextSpan(r, *spanID)
+		} else {
+			ctx := context.WithValue(r.Context(), contextKeySpanID, *spanID)
+			r = r.WithContext(ctx)
 		}
 
 		e := NewServerEvent(r)
@@ -117,11 +121,29 @@ type MiddlewareConfig struct {
 	// (which may be a login or a numeric ID).
 	CurrentUser func(*http.Request) string
 
-	// SetContextSpan, if non-nil, is called to set the span (which is
-	// either taken from the client request header or created anew) in
-	// the HTTP request context, so it may be used by other parts of
-	// the handling process.
+	// SetContextSpan is deprecated. If non-nil, is called to set the span
+	// (which is either taken from the client request header or created anew)
+	// in the HTTP request context, so it may be used by other parts of the
+	// handling process.
 	SetContextSpan func(*http.Request, appdash.SpanID)
+}
+
+type contextKey string
+
+var contextKeySpanID = contextKey("spanID")
+
+// SpanID returns the SpanID set for r by httptrace middleware. It requires
+// that MiddlewareConfig.SetContextSpan is nil. If not, it panics.
+func SpanID(r *http.Request) appdash.SpanID {
+	return r.Context().Value(contextKeySpanID).(appdash.SpanID)
+}
+
+// SpanIDFromContext returns the SpanID set for the request context ctx by
+// httptrace middleware.  It requires that MiddlewareConfig.SetContextSpan is
+// nil. If not, ok is false.
+func SpanIDFromContext(ctx context.Context) (spanID appdash.SpanID, ok bool) {
+	spanID, ok = ctx.Value(contextKeySpanID).(appdash.SpanID)
+	return
 }
 
 // responseInfoRecorder is an http.ResponseWriter that records a
