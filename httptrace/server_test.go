@@ -120,6 +120,65 @@ func TestMiddleware_useSpanFromHeaders(t *testing.T) {
 	}
 }
 
+func TestMiddleware_useSpanFromHeadersDefault(t *testing.T) {
+	ms := appdash.NewMemoryStore()
+	c := appdash.NewLocalCollector(ms)
+
+	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
+	req.Header.Set("X-Req-Header", "a")
+
+	spanID := appdash.SpanID{1, 2, 3}
+	SetSpanIDHeader(req.Header, spanID)
+
+	mw := Middleware(c, &MiddlewareConfig{
+		RouteName:   func(r *http.Request) string { return "r" },
+		CurrentUser: func(r *http.Request) string { return "u" },
+	})
+
+	var setContextSpan appdash.SpanID
+	w := httptest.NewRecorder()
+	mw(w, req, func(_ http.ResponseWriter, r *http.Request) {
+		setContextSpan = SpanID(r)
+	})
+
+	if setContextSpan != spanID {
+		t.Errorf("set context span to %v, want %v", setContextSpan, spanID)
+	}
+
+	trace, err := ms.Trace(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var e ServerEvent
+	if err := appdash.UnmarshalEvent(trace.Span.Annotations, &e); err != nil {
+		t.Fatal(err)
+	}
+
+	wantEvent := ServerEvent{
+		Request: RequestInfo{
+			Method:  "GET",
+			Proto:   "HTTP/1.1",
+			URI:     "/foo",
+			Host:    "example.com",
+			Headers: map[string]string{"X-Req-Header": "a"},
+		},
+		Response: ResponseInfo{
+			StatusCode: 200,
+			Headers:    map[string]string{"Span-Id": "0000000000000001/0000000000000002/0000000000000003"},
+		},
+		User:  "u",
+		Route: "r",
+	}
+
+	delete(e.Request.Headers, "Span-Id")
+	e.ServerRecv = time.Time{}
+	e.ServerSend = time.Time{}
+	if !reflect.DeepEqual(e, wantEvent) {
+		t.Errorf("got ServerEvent %+v, want %+v", e, wantEvent)
+	}
+}
+
 func TestMiddleware_createNewSpan(t *testing.T) {
 	ms := appdash.NewMemoryStore()
 	c := appdash.NewLocalCollector(ms)

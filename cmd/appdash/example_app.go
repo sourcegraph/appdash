@@ -92,8 +92,7 @@ func (c *DemoCmd) Execute(args []string) error {
 	// Handle the root path of our app.
 	http.Handle("/", &middlewareHandler{
 		middleware: httptrace.Middleware(localCollector, &httptrace.MiddlewareConfig{
-			RouteName:      func(r *http.Request) string { return r.URL.Path },
-			SetContextSpan: requestSpans.setRequestSpan,
+			RouteName: func(r *http.Request) string { return r.URL.Path },
 		}),
 		next: &demoApp{collector: localCollector, baseURL: demoURL, appdashURL: appdashURL},
 	})
@@ -116,7 +115,7 @@ type demoApp struct {
 }
 
 func (a *demoApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	span := requestSpans[r]
+	span := httptrace.SpanID(r)
 
 	switch r.URL.Path {
 	case "/":
@@ -158,16 +157,4 @@ func (a *demoApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	spanURL := a.appdashURL.ResolveReference(&url.URL{Path: fmt.Sprintf("/traces/%v", span.Trace)})
 	io.WriteString(w, fmt.Sprintf(`<br><br><hr><a href="%s">View request trace on appdash</a> (trace ID is %s)`, spanURL, span.Trace))
-}
-
-type requestSpanMap map[*http.Request]appdash.SpanID
-
-// requestSpans stores the appdash span ID associated with each HTTP
-// request. In a real app, you would use something like
-// gorilla/context instead of a map (so that entries get removed when
-// handling is completed, etc.).
-var requestSpans = requestSpanMap{}
-
-func (m requestSpanMap) setRequestSpan(r *http.Request, spanID appdash.SpanID) {
-	m[r] = spanID
 }
