@@ -99,7 +99,7 @@ func Home(w http.ResponseWriter, r *http.Request) {
 
 	// We're going to make some API requests, so we create a HTTP client using
 	// a appdash/httptrace transport here. The transport will inform Appdash of
-	// the HTTP events occuring.
+	// the HTTP events occurring.
 	httpClient := &http.Client{
 		Transport: &httptrace.Transport{
 			Recorder: appdash.NewRecorder(span, collector),
