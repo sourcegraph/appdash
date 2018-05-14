@@ -101,7 +101,7 @@ var _ interface {
 } = (*MemoryStore)(nil)
 
 // Collect implements the Collector interface by collecting the events that
-// occured in the span in-memory.
+// occurred in the span in-memory.
 func (ms *MemoryStore) Collect(id SpanID, as ...Annotation) error {
 	ms.Lock()
 	defer ms.Unlock()

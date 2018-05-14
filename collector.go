@@ -315,7 +315,7 @@ type RemoteCollector struct {
 }
 
 // Collect implements the Collector interface by sending the events that
-// occured in the span to the remote collector server (see CollectorServer).
+// occurred in the span to the remote collector server (see CollectorServer).
 func (rc *RemoteCollector) Collect(span SpanID, anns ...Annotation) error {
 	return rc.collectAndRetry(newCollectPacket(span, anns))
 }

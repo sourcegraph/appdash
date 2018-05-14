@@ -7,7 +7,7 @@ import (
 
 // memStats collects and prints some formatted *runtime.MemStats fields.
 type memStats struct {
-	// Number of collections occuring.
+	// Number of collections occurring.
 	Collections int
 
 	indent int

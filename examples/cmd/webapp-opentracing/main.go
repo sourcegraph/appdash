@@ -88,7 +88,7 @@ func Home(w http.ResponseWriter, r *http.Request) {
 	span := opentracing.StartSpan(r.URL.Path)
 	defer span.Finish()
 
-	// OpenTracing allows for arbritary tags to be added to a Span.
+	// OpenTracing allows for arbitrary tags to be added to a Span.
 	span.SetTag("Request.Host", r.Host)
 	span.SetTag("Request.Address", r.RemoteAddr)
 	addHeaderTags(span, r.Header)
