@@ -11,8 +11,8 @@ func TestIDMarshalJSON(t *testing.T) {
 	id := ID(10018820)
 	buf := bytes.NewBuffer(nil)
 	json.NewEncoder(buf).Encode(id)
-	got := `"000000000098e004"`
-	want := strings.TrimSpace(buf.String())
+	want := `"000000000098e004"`
+	got := strings.TrimSpace(buf.String())
 	if got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
