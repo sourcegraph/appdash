@@ -4,7 +4,7 @@
 
 Appdash is an application tracing system for Go, based on
 [Google's Dapper](http://research.google.com/pubs/pub36356.html) and
-[Twitter's Zipkin](http://twitter.github.io/zipkin/).
+[Twitter's Zipkin](https://zipkin.io/).
 
 Appdash allows you to trace the end-to-end handling of requests and
 operations in your application (for perf and debugging). It displays
