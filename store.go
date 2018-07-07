@@ -166,21 +166,6 @@ func (ms *MemoryStore) collectNoLock(id SpanID, as ...Annotation) error {
 		ms.trace[id.Trace] = root // set new root
 		ms.reattachChildren(root, oldRoot)
 		ms.insert(root, oldRoot) // reinsert the old root
-
-		// Move the old temp root's temp children to the new
-		// (possibly temp) root.
-		var sub2 []*Trace
-		for _, c := range oldRoot.Sub {
-			if c.Span.ID.Parent != oldRoot.Span.ID.Span {
-				if ms.log {
-					log.Printf("Move %v from old root %v to new (possibly temp) root %v", c.Span.ID, oldRoot.Span.ID, root.Span.ID)
-				}
-				root.Sub = append(root.Sub, c)
-			} else {
-				sub2 = append(sub2, c)
-			}
-		}
-		oldRoot.Sub = sub2
 	}
 
 	// Insert into trace tree. (We inserted the trace root span
