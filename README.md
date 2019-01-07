@@ -31,7 +31,7 @@ A demo / pure `net/http` application (which is slightly more verbose) is also av
 
 ## Community
 
-Questions or comments? Join us [on Slack](http://slackin.srclib.org/)!
+Questions or comments? Join us [on #sourcegraph](https://invite.slack.golangbridge.org/) in the Gophers slack!
 
 ## Development
 
