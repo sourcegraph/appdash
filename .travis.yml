@@ -15,5 +15,5 @@ before_install:
   - export TRAVIS_BUILD_DIR=$HOME/gopath/src/sourcegraph.com/sourcegraph/appdash
 script:
   - diff -u <(echo -n) <(gofmt -d -s .)
-  - go tool vet -all -shadow -composites=false .
+  - go vet -all .
   - go test -v -race ./...
