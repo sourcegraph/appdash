@@ -84,9 +84,9 @@ func TestUnmarshalEvent(t *testing.T) {
 
 func TestUnmarshalEvents(t *testing.T) {
 	origRegisteredEvents := registeredEvents
-	defer func() {
+	t.Cleanup(func() {
 		registeredEvents = origRegisteredEvents
-	}()
+	})
 	registeredEvents = make(map[string]Event)
 
 	RegisterEvent(dummyEvent{})
