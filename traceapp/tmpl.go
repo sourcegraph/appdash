@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	htmpl "html/template"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -100,7 +99,7 @@ func (a *App) parseHTMLTemplates(sets [][]string) error {
 			if err != nil {
 				return fmt.Errorf("template %v: %s", set, err)
 			}
-			tmplBytes, err := ioutil.ReadAll(tmplFile)
+			tmplBytes, err := io.ReadAll(tmplFile)
 			tmplFile.Close()
 			if err != nil {
 				return fmt.Errorf("template %v: %s", set, err)

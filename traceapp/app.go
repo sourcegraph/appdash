@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	htmpl "html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -295,7 +294,7 @@ func (a *App) serveAggregate(w http.ResponseWriter, r *http.Request) error {
 func (a *App) serveTraceUpload(w http.ResponseWriter, r *http.Request) error {
 	// Read the uploaded JSON trace data.
 	defer r.Body.Close()
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		return err
 	}

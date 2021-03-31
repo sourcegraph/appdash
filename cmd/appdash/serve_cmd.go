@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -130,11 +129,11 @@ func (c *ServeCmd) Execute(args []string) error {
 	var l net.Listener
 	var proto string
 	if c.TLSCert != "" || c.TLSKey != "" {
-		certBytes, err := ioutil.ReadFile(c.TLSCert)
+		certBytes, err := os.ReadFile(c.TLSCert)
 		if err != nil {
 			log.Fatal(err)
 		}
-		keyBytes, err := ioutil.ReadFile(c.TLSKey)
+		keyBytes, err := os.ReadFile(c.TLSKey)
 		if err != nil {
 			log.Fatal(err)
 		}

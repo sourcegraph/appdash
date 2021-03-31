@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"reflect"
@@ -496,7 +495,7 @@ func BenchmarkMemoryStoreWrite1000(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		err := ms.Write(ioutil.Discard)
+		err := ms.Write(io.Discard)
 		if err != nil {
 			b.Fatal(err)
 		}

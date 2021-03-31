@@ -4,7 +4,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -360,7 +359,7 @@ func PersistEvery(s PersistentStore, interval time.Duration, file string) error 
 	for {
 		time.Sleep(interval)
 
-		f, err := ioutil.TempFile("", "appdash")
+		f, err := os.CreateTemp("", "appdash")
 		if err != nil {
 			return err
 		}
