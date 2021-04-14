@@ -1,5 +1,5 @@
 import socket
-from . import encode
+import encode
 
 # RemoteCollector is a remote collector that operates over a standard, and
 # synchronous, Python socket.
@@ -33,7 +33,7 @@ class RemoteCollector:
 
     def _log(self, *args):
         if self._debug:
-            print("appdash: %s" % (" ".join(args)))
+            print "appdash: %s" % (" ".join(args))
 
     # connect connects the underlying socket to the given address, waiting at
     # max for the given timeout before raising an exception.

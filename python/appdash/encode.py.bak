@@ -1,5 +1,5 @@
-from . import collector_pb2 as wire
-from . import varint
+import collector_pb2 as wire
+import varint
 
 # _msg encodes the protobuf message and returns it as a string. The
 # serialized protobuf message is preceded by a varint-encoded length of the

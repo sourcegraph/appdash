@@ -69,7 +69,7 @@ _COLLECTPACKET_ANNOTATION = _descriptor.Descriptor(
     _descriptor.FieldDescriptor(
       name='key', full_name='wire.CollectPacket.Annotation.key', index=0,
       number=6, type=9, cpp_type=9, label=2,
-      has_default_value=False, default_value=str("", "utf-8"),
+      has_default_value=False, default_value=unicode("", "utf-8"),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -133,13 +133,17 @@ _COLLECTPACKET.fields_by_name['spanid'].message_type = _COLLECTPACKET_SPANID
 _COLLECTPACKET.fields_by_name['annotation'].message_type = _COLLECTPACKET_ANNOTATION
 DESCRIPTOR.message_types_by_name['CollectPacket'] = _COLLECTPACKET
 
-class CollectPacket(_message.Message, metaclass=_reflection.GeneratedProtocolMessageType):
-  class SpanID(_message.Message, metaclass=_reflection.GeneratedProtocolMessageType):
+class CollectPacket(_message.Message):
+  __metaclass__ = _reflection.GeneratedProtocolMessageType
+
+  class SpanID(_message.Message):
+    __metaclass__ = _reflection.GeneratedProtocolMessageType
     DESCRIPTOR = _COLLECTPACKET_SPANID
 
     # @@protoc_insertion_point(class_scope:wire.CollectPacket.SpanID)
 
-  class Annotation(_message.Message, metaclass=_reflection.GeneratedProtocolMessageType):
+  class Annotation(_message.Message):
+    __metaclass__ = _reflection.GeneratedProtocolMessageType
     DESCRIPTOR = _COLLECTPACKET_ANNOTATION
 
     # @@protoc_insertion_point(class_scope:wire.CollectPacket.Annotation)

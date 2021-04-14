@@ -1,6 +1,6 @@
-from . import event
+import event
 import itertools
-from .spanid import SpanID, Annotation
+from spanid import SpanID, Annotation
 from basictracer import BasicTracer, SpanRecorder
 
 def create_new_tracer(collector, sampler=None):

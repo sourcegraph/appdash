@@ -2,7 +2,7 @@ from twisted.internet.protocol import Protocol, ReconnectingClientFactory
 from twisted.internet import task
 from sys import stdout
 
-from . import encode
+import encode
 
 class CollectorProtocol(Protocol):
     # CollectorProtocol is a Twisted implementation of appdash's protobuf-based
@@ -40,7 +40,7 @@ class RemoteCollectorFactory(ReconnectingClientFactory):
 
     def _log(self, *args):
         if self._debug:
-            print("appdash: %s" % (" ".join(args)))
+            print "appdash: %s" % (" ".join(args))
 
     # collect collects annotations for the given spanID.
     #

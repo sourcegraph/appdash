@@ -1,6 +1,6 @@
 import strict_rfc3339
 import time
-from .spanid import *
+from spanid import *
 
 __schemaPrefix = "_schema:"
 
@@ -12,7 +12,7 @@ def timeString(ts):
 # MarshalEvent marshals an event into annotations.
 def MarshalEvent(e):
     a = []
-    for key, value in list(e.marshal().items()):
+    for key, value in e.marshal().items():
         a.append(Annotation(key, value))
     a.append(Annotation(__schemaPrefix + e.schema, ""))
     return a
@@ -114,7 +114,7 @@ class SQLEvent:
 # defined functionality primarily to avoid code duplication four times below in
 # marshaling of HTTP events.
 def _flattenReqRes(reqRes, into):
-    for k, v in list(reqRes.items()):
+    for k, v in reqRes.items():
         if k == "Headers":
             into["Request.Headers." + k] = str(v)
         else:
