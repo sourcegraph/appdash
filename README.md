@@ -1,6 +1,5 @@
 # appdash (view on [Sourcegraph](https://sourcegraph.com/github.com/sourcegraph/appdash))
 
-<img width=250 src="https://s3-us-west-2.amazonaws.com/sourcegraph-assets/apptrace-screenshot0.png" align="right">
 
 Appdash is an application tracing system for Go, based on
 [Google's Dapper](http://research.google.com/pubs/pub36356.html) and
