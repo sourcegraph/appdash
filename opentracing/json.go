@@ -24,6 +24,7 @@ package opentracing
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/opentracing/opentracing-go/log"
 )
@@ -56,23 +57,23 @@ func (ml fieldsAsMap) EmitBool(key string, value bool) {
 }
 
 func (ml fieldsAsMap) EmitInt(key string, value int) {
-	ml[key] = fmt.Sprintf("%d", value)
+	ml[key] = strconv.Itoa(value)
 }
 
 func (ml fieldsAsMap) EmitInt32(key string, value int32) {
-	ml[key] = fmt.Sprintf("%d", value)
+	ml[key] = strconv.Itoa(value)
 }
 
 func (ml fieldsAsMap) EmitInt64(key string, value int64) {
-	ml[key] = fmt.Sprintf("%d", value)
+	ml[key] = strconv.Itoa(value)
 }
 
 func (ml fieldsAsMap) EmitUint32(key string, value uint32) {
-	ml[key] = fmt.Sprintf("%d", value)
+	ml[key] = strconv.Itoa(value)
 }
 
 func (ml fieldsAsMap) EmitUint64(key string, value uint64) {
-	ml[key] = fmt.Sprintf("%d", value)
+	ml[key] = strconv.Itoa(value)
 }
 
 func (ml fieldsAsMap) EmitFloat32(key string, value float32) {
